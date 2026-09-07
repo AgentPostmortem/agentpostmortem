@@ -20,7 +20,7 @@
     "@aws-sdk/client-s3": "^3.1126.0",
     "@aws-sdk/s3-request-presigner": "^3.1126.0",
     "@opennextjs/cloudflare": "~1.15.1",
-    "@supabase/ssr": "^0.12.5",
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.112.3",
     "@tailwindcss/typography": "^0.5.20",
     "@vercel/og": "^1.0.2",
