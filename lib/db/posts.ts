@@ -260,7 +260,10 @@ export async function fetchRelatedPosts(
     // Fallback: same agent
     const { data } = await supabase
       .from("posts")
-      .select(`*, agents(slug, name, company), post_tags(tags(slug, label))`)
+      .select(
+        `*, agents!inner(slug, name, company), post_tags(tags(slug, label))`,
+      )
+      .eq("agents.slug", agentSlug)
       .eq("status", "approved")
       .neq("case_number", caseNumber)
       .order("vote_score", { ascending: false })
