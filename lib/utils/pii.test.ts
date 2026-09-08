@@ -173,9 +173,7 @@ describe("redactPii", () => {
   });
 
   it("leaves a parenthesized value alone", () => {
-    expect(redactPhones("Value: (2026) 1234567")).toBe(
-      "Value: (2026) 1234567",
-    );
+    expect(redactPhones("Value: (2026) 1234567")).toBe("Value: (2026) 1234567");
   });
 
   it("leaves an extension-like value alone", () => {
