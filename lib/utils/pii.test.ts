@@ -22,6 +22,16 @@ describe("redactPii", () => {
       "Call me at [PHONE REDACTED]",
     );
   });
+  it("redacts compact international phone numbers", () => {
+    expect(redactPhones("Call me at +447700900123")).toBe(
+      "Call me at [PHONE REDACTED]",
+    );
+  });
+  it("redacts domestic phone numbers with a leading zero", () => {
+    expect(redactPhones("Call me at 07700 900123")).toBe(
+      "Call me at [PHONE REDACTED]",
+    );
+  });
 
   it("leaves a short extension-only digit run alone", () => {
     expect(redactPhones("ext 12")).toBe("ext 12");
@@ -33,11 +43,9 @@ describe("redactPii", () => {
     expect(redactPhones("call 555-1212 ext 12")).toBe("call [PHONE REDACTED]");
   });
 
-  it("documents that a long non-phone digit run is over-redacted", () => {
-    // Known over-match: an order ID with enough digits is treated as a phone
-    // number. Conservative redaction is intentional in the utility.
+  it("leaves a long non-phone digit run alone", () => {
     expect(redactPhones("Order 12345678901234567890")).toBe(
-      "Order [PHONE REDACTED]",
+      "Order 12345678901234567890",
     );
   });
 
@@ -58,7 +66,7 @@ describe("redactPii", () => {
     );
   });
 
-  // over-redacts scenarios
+  // non-phone structured values
 
   it("over-redacts emails with invalid local-part separators", () => {
     expect(
@@ -106,92 +114,92 @@ describe("redactPii", () => {
     ).toBe("Values: [EMAIL REDACTED] [EMAIL REDACTED] [EMAIL REDACTED]");
   });
 
-  it("over-redacts a plain number as a phone number", () => {
+  it("leaves a plain number alone", () => {
     expect(redactPhones("Reference number: 1234567")).toBe(
-      "Reference number: [PHONE REDACTED]",
+      "Reference number: 1234567",
     );
   });
 
-  it("over-redacts a long numeric identifier as a phone number", () => {
+  it("leaves a long numeric identifier alone", () => {
     expect(redactPhones("Order ID: 001234567890")).toBe(
-      "Order ID: [PHONE REDACTED]",
+      "Order ID: 001234567890",
     );
   });
 
-  it("over-redacts a version number as a phone number", () => {
+  it("leaves a version number alone", () => {
     expect(redactPhones("Build version: 1.234.567")).toBe(
-      "Build version: [PHONE REDACTED]",
+      "Build version: 1.234.567",
     );
   });
 
-  it("over-redacts an IP address as a phone number", () => {
+  it("leaves an IP address alone", () => {
     expect(redactPhones("Server IP: 192.168.1.1")).toBe(
-      "Server IP: [PHONE REDACTED]",
+      "Server IP: 192.168.1.1",
     );
   });
 
-  it("over-redacts a date-like value as a phone number", () => {
-    expect(redactPhones("Reference date: 2026-08-06")).toBe(
-      "Reference date: [PHONE REDACTED]",
-    );
+  it("leaves an ISO date and timestamp alone", () => {
+    const input = "Created at: 2026-01-14T13:50:34.240Z";
+
+    expect(redactPhones(input)).toBe(input);
   });
 
-  it("over-redacts a timestamp as a phone number", () => {
+  it("leaves a compact timestamp alone", () => {
     expect(redactPhones("Created at: 20260806144500")).toBe(
-      "Created at: [PHONE REDACTED]",
+      "Created at: 20260806144500",
     );
   });
 
-  it("over-redacts a postal code as a phone number", () => {
-    expect(redactPhones("PIN code: 11000123")).toBe(
-      "PIN code: [PHONE REDACTED]",
-    );
+  it("leaves a postal code alone", () => {
+    expect(redactPhones("PIN code: 11000123")).toBe("PIN code: 11000123");
   });
 
-  it("over-redacts a currency amount as a phone number", () => {
+  it("leaves a currency amount alone", () => {
     expect(redactPhones("Total amount: 123.456.789")).toBe(
-      "Total amount: [PHONE REDACTED]",
+      "Total amount: 123.456.789",
     );
   });
 
-  it("over-redacts coordinates as a phone number", () => {
+  it("leaves coordinates alone", () => {
     expect(redactPhones("Location: 28.6139 77.2090")).toBe(
-      "Location: [PHONE REDACTED]",
+      "Location: 28.6139 77.2090",
     );
   });
 
-  it("over-redacts an all-zero placeholder as a phone number", () => {
+  it("leaves an all-zero placeholder alone", () => {
     expect(redactPhones("Placeholder: 000-000-0000")).toBe(
-      "Placeholder: [PHONE REDACTED]",
+      "Placeholder: 000-000-0000",
     );
   });
 
-  it("over-redacts a parenthesized value as a phone number", () => {
-    expect(redactPhones("Value: (2026) 1234567")).toBe(
-      "Value: [PHONE REDACTED]",
-    );
+  it("leaves a parenthesized value alone", () => {
+    expect(redactPhones("Value: (2026) 1234567")).toBe("Value: (2026) 1234567");
   });
 
-  it("over-redacts an extension-like value as a phone number", () => {
+  it("leaves an extension-like value alone", () => {
     expect(redactPhones("Extension: ext-1234568")).toBe(
-      "Extension: ext-[PHONE REDACTED]",
+      "Extension: ext-1234568",
     );
   });
 
-  it("over-redacts a number embedded in an identifier", () => {
+  it("leaves a number embedded in an identifier alone", () => {
     expect(redactPhones("Serial number: ABC-1234567-XYZ")).toBe(
-      "Serial number: ABC-[PHONE REDACTED]-XYZ",
+      "Serial number: ABC-1234567-XYZ",
     );
   });
 
-  it("over-redacts multiple non-phone values in one string", () => {
-    expect(
-      redactPhones(
-        "Date 2026-08-06, IP 192.168.1.1, version 1.234.567, order 001234567890",
-      ),
-    ).toBe(
-      "Date [PHONE REDACTED], IP [PHONE REDACTED], version [PHONE REDACTED], order [PHONE REDACTED]",
-    );
+  it("leaves multiple non-phone values alone", () => {
+    const input =
+      "Date 2026-08-06, IP 192.168.1.1, version 1.234.567, order 001234567890";
+
+    expect(redactPhones(input)).toBe(input);
+  });
+
+  it("leaves CVE identifiers, token counts, and commit ranges alone", () => {
+    const input =
+      "CVE-2024-12345 used 8 240 000 000 tokens; commits abc1234..def5678";
+
+    expect(redactPhones(input)).toBe(input);
   });
 
   it("over-redacts an email embedded in a larger token", () => {

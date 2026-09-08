@@ -4,19 +4,22 @@
  * Applied to all user-submitted text before insertion into the database.
  * Redacts email addresses and phone numbers with placeholder tokens.
  *
- * These patterns are intentionally conservative — they may over-match in
- * edge cases, but that's preferable to leaking PII.
+ * These patterns favor common phone and email shapes and avoid redacting
+ * structured identifiers such as dates and version numbers.
  */
 
 /** Matches common email formats */
 const EMAIL_PATTERN = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
 
 /**
- * Matches phone numbers in common formats:
- * +1-555-555-5555, (555) 555-5555, 555.555.5555, +44 7700 900123, etc.
+ * Matches phone numbers with a recognizable phone structure:
+ * +1-555-555-5555, (555) 555-1212, 555.555.5555, +44 7700 900123, etc.
+ *
+ * Requiring a separator between phone-sized groups avoids treating arbitrary
+ * digit runs, dates, versions, and identifiers as phone numbers.
  */
 const PHONE_PATTERN =
-  /(?<!\d)(?:\+?(\d{1,3})[-.\s]?)?(?:\((\d{1,4})\)[-.\s]?)?(\d{1,4})[-.\s]?(\d{1,4})[-.\s]?(\d{1,9})(?:\s?(?:#|x\.?|ext\.?|extension)\s?\d+)?(?!\d)/g;
+  /(?<![\w])(?:\+\d{7,15}|(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?|\d{3,5}[\s.-])(?:\d{3}[\s.-]\d{4}|\d{3,4}[\s.-]\d{4}|\d{4}|\d{6}))(?:\s?(?:#|x\.?|ext\.?|extension)\s?\d+)?(?![\w])/g;
 
 /** Minimum digit count for something to qualify as a phone number */
 const MIN_PHONE_DIGITS = 7;
@@ -36,6 +39,7 @@ export function redactPhones(text: string): string {
   return text.replace(PHONE_PATTERN, (match) => {
     const digits = match.replace(/\D/g, "");
     if (digits.length < MIN_PHONE_DIGITS) return match;
+    if (/^0+$/.test(digits)) return match;
     return "[PHONE REDACTED]";
   });
 }
