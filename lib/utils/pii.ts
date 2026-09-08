@@ -19,7 +19,7 @@ const EMAIL_PATTERN = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
  * digit runs, dates, versions, and identifiers as phone numbers.
  */
 const PHONE_PATTERN =
-  /(?<![\w])(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?|\d{3,5}[\s.-])(?:\d{3}[\s.-]\d{4}|\d{3,4}[\s.-]\d{4}|\d{4}|\d{6})(?:\s?(?:#|x\.?|ext\.?|extension)\s?\d+)?(?![\w])/g;
+  /(?<![\w])(?:\+\d{7,15}|(?:\+\d{1,3}[\s.-]?)?(?:\(\d{1,4}\)[\s.-]?|\d{3,5}[\s.-])(?:\d{3}[\s.-]\d{4}|\d{3,4}[\s.-]\d{4}|\d{4}|\d{6}))(?:\s?(?:#|x\.?|ext\.?|extension)\s?\d+)?(?![\w])/g;
 
 /** Minimum digit count for something to qualify as a phone number */
 const MIN_PHONE_DIGITS = 7;

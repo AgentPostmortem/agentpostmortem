@@ -22,6 +22,11 @@ describe("redactPii", () => {
       "Call me at [PHONE REDACTED]",
     );
   });
+  it("redacts compact international phone numbers", () => {
+    expect(redactPhones("Call me at +447700900123")).toBe(
+      "Call me at [PHONE REDACTED]",
+    );
+  });
   it("redacts domestic phone numbers with a leading zero", () => {
     expect(redactPhones("Call me at 07700 900123")).toBe(
       "Call me at [PHONE REDACTED]",
