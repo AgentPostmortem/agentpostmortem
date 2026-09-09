@@ -13,7 +13,10 @@ const schema = z.object({
   contentType: z.string().refine((t) => ALLOWED_TYPES.includes(t), {
     message: "Only JPEG, PNG, WEBP, and GIF images are allowed.",
   }),
-  size: z.number().max(MAX_SIZE_BYTES, "File must be under 5 MB.").optional(),
+  size: z
+    .number({ required_error: "File size is required." })
+    .min(1, "File size must be greater than 0 bytes.")
+    .max(MAX_SIZE_BYTES, "File must be under 5 MB."),
 });
 
 const WINDOW_SECONDS = 10 * 60;
@@ -52,17 +55,12 @@ export async function POST(req: NextRequest) {
     }
 
     const { filename, contentType, size } = parsed.data;
-    if (size != null && size > MAX_SIZE_BYTES) {
-      return NextResponse.json(
-        { error: "File must be under 5 MB." },
-        { status: 400 },
-      );
-    }
 
     const result = await getPresignedUploadUrl(
       filename,
       contentType,
       "screenshots",
+      size,
     );
 
     return NextResponse.json({
