@@ -14,7 +14,8 @@ const schema = z.object({
     message: "Only JPEG, PNG, WEBP, and GIF images are allowed.",
   }),
   size: z
-    .number({ required_error: "File size is required." })
+    .number()
+    .int("File size must be an integer byte count.")
     .min(1, "File size must be greater than 0 bytes.")
     .max(MAX_SIZE_BYTES, "File must be under 5 MB."),
 });
