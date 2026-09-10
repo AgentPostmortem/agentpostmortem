@@ -71,6 +71,7 @@ export async function getPresignedUploadUrl(
   filename: string,
   contentType: string,
   folder = "screenshots",
+  contentLength?: number,
 ): Promise<PresignUploadResult> {
   const ext = extensionForContentType(contentType);
   const key = `${folder}/${randomUUID()}.${ext}`;
@@ -80,6 +81,7 @@ export async function getPresignedUploadUrl(
     Bucket: bucketName,
     Key: key,
     ContentType: contentType,
+    ...(contentLength != null ? { ContentLength: contentLength } : {}),
     Metadata: { "original-filename": sanitizeFilenameForMetadata(filename) },
   });
 

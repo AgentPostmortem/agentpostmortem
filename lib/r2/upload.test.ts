@@ -82,6 +82,20 @@ describe("getPresignedUploadUrl", () => {
     expect(command.Metadata?.["original-filename"]).toBe("my_photo__1_.png");
   });
 
+  it("includes ContentLength in PutObjectCommand when size is provided", async () => {
+    await upload.getPresignedUploadUrl(
+      "photo.png",
+      "image/png",
+      "screenshots",
+      1048576,
+    );
+
+    const command = putObjectCommand.mock.calls[0][0] as {
+      ContentLength?: number;
+    };
+    expect(command.ContentLength).toBe(1048576);
+  });
+
   it("reuses one client for upload and read presigns", async () => {
     await upload.getPresignedUploadUrl("first.png", "image/png");
     await upload.getPresignedReadUrl("screenshots/existing.png");
