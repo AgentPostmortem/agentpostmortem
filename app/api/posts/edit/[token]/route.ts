@@ -177,9 +177,10 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
         estimated_cost_usd: data.estimatedCostUsd ?? null,
         screenshot_urls: data.screenshotUrls ?? [],
         is_anonymous: data.isAnonymous,
-        submitter_handle: data.authorHandle
-          ? redactPii(data.authorHandle)
-          : null,
+        submitter_handle:
+          !data.isAnonymous && data.authorHandle
+            ? redactPii(data.authorHandle)
+            : null,
         status: "pending",
       })
       .eq("id", existing.id);
