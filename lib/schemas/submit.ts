@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { isOwnedScreenshotUrl } from "@/lib/utils/urls";
 
+export const MAX_AUTHOR_HANDLE_LENGTH = 64;
+
 export const submitSchema = z.object({
   /** Slug of the agent involved (from AGENTS constant) */
   agentSlug: z.string().min(1, "Please select the AI agent involved.").max(64),
@@ -39,7 +41,7 @@ export const submitSchema = z.object({
   isAnonymous: z.boolean().default(true),
 
   /** Optional display handle or company name (when not anonymous) */
-  authorHandle: z.string().max(64).optional(),
+  authorHandle: z.string().max(MAX_AUTHOR_HANDLE_LENGTH).optional(),
 
   /** Optional email to receive the edit token — never stored long-term */
   email: z

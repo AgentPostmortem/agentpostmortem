@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { consumeSharedRateLimit } from "@/lib/rate-limit/shared";
 import { hashIp, getClientIp } from "@/lib/utils/hash";
+import { MAX_AUTHOR_HANDLE_LENGTH } from "@/lib/schemas/submit";
 
 interface CommentBody {
   post_id?: unknown;
@@ -47,6 +48,14 @@ export async function POST(req: NextRequest) {
     const isAnon = typeof is_anonymous === "boolean" ? is_anonymous : true;
     const handle =
       typeof author_handle === "string" ? author_handle.trim() : null;
+    if (handle && handle.length > MAX_AUTHOR_HANDLE_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Handle must be ${MAX_AUTHOR_HANDLE_LENGTH} characters or fewer.`,
+        },
+        { status: 400 },
+      );
+    }
     if (!isAnon && !handle) {
       return NextResponse.json(
         { error: "A handle is required when posting non-anonymously." },
