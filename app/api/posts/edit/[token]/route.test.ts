@@ -98,6 +98,7 @@ describe("PATCH /api/posts/edit/[token]", () => {
 
   it("updates the post and rewrites its tags", async () => {
     const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const updateSpy = vi.fn().mockReturnValue({ eq: updateEq });
     const deleteEq = vi.fn().mockResolvedValue({ error: null });
     const insertTags = vi.fn().mockResolvedValue({ error: null });
 
@@ -113,9 +114,7 @@ describe("PATCH /api/posts/edit/[token]", () => {
               single: async () => ({ data: { id: "agent-1" }, error: null }),
             }),
           }),
-          update: () => ({
-            eq: updateEq,
-          }),
+          update: updateSpy,
         };
       }
 
@@ -171,11 +170,96 @@ describe("PATCH /api/posts/edit/[token]", () => {
     );
 
     expect(response.status).toBe(200);
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_anonymous: false,
+        submitter_handle: "ops-team",
+      }),
+    );
     expect(updateEq).toHaveBeenCalledWith("id", "post-1");
     expect(deleteEq).toHaveBeenCalledWith("post_id", "post-1");
     expect(insertTags).toHaveBeenCalledWith([
       { post_id: "post-1", tag_id: "tag-1" },
     ]);
+  });
+
+  it("clears an author handle when an anonymous post is edited", async () => {
+    const updateEq = vi.fn().mockResolvedValue({ error: null });
+    const updateSpy = vi.fn().mockReturnValue({ eq: updateEq });
+    const deleteEq = vi.fn().mockResolvedValue({ error: null });
+    const insertTags = vi.fn().mockResolvedValue({ error: null });
+
+    from.mockImplementation((table: string) => {
+      if (table === "posts") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "post-1" },
+                error: null,
+              }),
+            }),
+          }),
+          update: updateSpy,
+        };
+      }
+
+      if (table === "agents") {
+        return {
+          select: () => ({
+            eq: () => ({
+              single: async () => ({ data: { id: "agent-1" }, error: null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === "tags") {
+        return {
+          select: () => ({
+            in: async () => ({
+              data: [{ id: "tag-1", slug: "hallucination" }],
+              error: null,
+            }),
+          }),
+        };
+      }
+
+      if (table === "post_tags") {
+        return {
+          delete: () => ({
+            eq: deleteEq,
+          }),
+          insert: insertTags,
+        };
+      }
+
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    const { PATCH } = await import("./route");
+    const response = await PATCH(
+      createPatchRequest({
+        agentSlug: "claude",
+        title: "Agent deleted a customer record during a routine sync",
+        outcome:
+          "The assistant misunderstood the task, deleted a live customer record, and forced the team into a manual restore that took several hours to unwind safely.",
+        damageLevel: 3,
+        tags: ["hallucination"],
+        isAnonymous: true,
+        authorHandle: "private-handle",
+      }),
+      { params: { token: "token-123" } },
+    );
+
+    expect(response.status).toBe(200);
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        is_anonymous: true,
+        submitter_handle: null,
+      }),
+    );
+    expect(updateEq).toHaveBeenCalledWith("id", "post-1");
   });
 
   it("rejects a well-formed R2 URL with a malformed object key", async () => {

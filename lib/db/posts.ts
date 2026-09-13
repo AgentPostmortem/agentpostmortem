@@ -13,6 +13,7 @@ export type FeedTab = "hot" | "new" | "week" | "hof";
 function rowToPost(row: Record<string, unknown>): Post {
   const agent = row.agents as Record<string, unknown> | null;
   const postTags = row.post_tags as Array<{ tags: { slug: string } }> | null;
+  const isAnonymous = (row.is_anonymous as boolean) ?? true;
 
   return {
     id: row.id as string,
@@ -27,8 +28,10 @@ function rowToPost(row: Record<string, unknown>): Post {
     tags: postTags?.map((pt) => pt.tags.slug) ?? [],
     voteScore: (row.vote_score as number) ?? 0,
     createdAt: row.created_at as string,
-    isAnonymous: (row.is_anonymous as boolean) ?? true,
-    authorHandle: (row.submitter_handle as string | null) ?? undefined,
+    isAnonymous,
+    authorHandle: isAnonymous
+      ? undefined
+      : ((row.submitter_handle as string | null) ?? undefined),
     screenshots: (row.screenshot_urls as string[] | null) ?? [],
     sourceUrl: (row.source_url as string | null) ?? undefined,
     sourceTitle: (row.source_title as string | null) ?? undefined,

@@ -90,7 +90,10 @@ export async function POST(req: NextRequest) {
     const cleanTitle = redactPii(data.title);
     const cleanOutcome = redactPii(data.outcome);
     const cleanPrompt = data.prompt ? redactPii(data.prompt) : null;
-    const cleanHandle = data.authorHandle ? redactPii(data.authorHandle) : null;
+    const cleanHandle =
+      !data.isAnonymous && data.authorHandle
+        ? redactPii(data.authorHandle)
+        : null;
 
     // Generate edit token — raw token sent to user, hash stored in DB
     const rawToken = randomBytes(32).toString("hex");
