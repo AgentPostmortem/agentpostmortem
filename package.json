@@ -21,7 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1135.0",
     "@opennextjs/cloudflare": "~1.15.1",
     "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.116.0",
+    "@supabase/supabase-js": "^2.117.1",
     "@tailwindcss/typography": "^0.5.20",
     "@vercel/og": "^1.0.2",
     "autoprefixer": "^10.6.1",
