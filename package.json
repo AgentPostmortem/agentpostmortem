@@ -58,5 +58,13 @@
     "firefox >= 90",
     "safari >= 15",
     "edge >= 91"
-  ]
+  ],
+  "pnpm": {
+    "approvedBuilds": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver",
+      "workerd"
+    ]
+  }
 }

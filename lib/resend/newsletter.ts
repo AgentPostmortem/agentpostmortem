@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { getSiteUrl } from "@/lib/utils/urls";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
 const FROM =
   process.env.RESEND_NEWSLETTER_FROM ??
   "AgentPostmortem <cases@agentpostmortem.com>";

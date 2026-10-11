@@ -17,6 +17,7 @@ import {
 } from "@/lib/constants/severity";
 import { getSiteUrl } from "@/lib/utils/urls";
 import { incidentDate } from "@/lib/utils/incident-date";
+import { formatUsd } from "@/lib/utils/format";
 
 export const revalidate = 60;
 
@@ -94,14 +95,7 @@ export default async function CasePage({ params }: PageProps) {
     timeZone: "UTC",
   }).format(new Date(incidentDate(post)));
 
-  const cost =
-    post.estimatedCostUsd != null
-      ? post.estimatedCostUsd >= 1_000_000
-        ? `$${(post.estimatedCostUsd / 1_000_000).toFixed(1)}M`
-        : post.estimatedCostUsd >= 1_000
-          ? `$${(post.estimatedCostUsd / 1_000).toFixed(0)}k`
-          : `$${post.estimatedCostUsd}`
-      : null;
+  const cost = formatUsd(post.estimatedCostUsd);
 
   const siteUrl = getSiteUrl();
   const sourceDomain = getSourceDomain(post.sourceUrl);

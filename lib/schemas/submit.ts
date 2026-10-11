@@ -29,7 +29,7 @@ export const submitSchema = z.object({
   damageLevel: z.number().int().min(1).max(5) as z.ZodType<1 | 2 | 3 | 4 | 5>,
 
   /** Approximate USD financial damage — 0 for reputational only */
-  estimatedCostUsd: z.number().int().min(0).max(100_000_000).optional(),
+  estimatedCostUsd: z.number().int().min(0).max(1_000_000_000_000).optional(),
 
   /** Tags — at least one required */
   tags: z

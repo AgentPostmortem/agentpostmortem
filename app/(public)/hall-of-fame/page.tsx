@@ -4,6 +4,7 @@ import { fetchFeedPosts } from "@/lib/db/posts";
 import { VoteButtons } from "@/components/post/VoteButtons";
 import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { formatUsd } from "@/lib/utils/format";
 
 export const revalidate = 60;
 
@@ -86,14 +87,7 @@ export default async function HallOfFamePage({ searchParams }: PageProps) {
               {posts.map((post, i) => {
                 const rank = rankOffset + i;
                 const isTop3 = rank < 3;
-                const cost =
-                  post.estimatedCostUsd != null
-                    ? post.estimatedCostUsd >= 1_000_000
-                      ? `$${(post.estimatedCostUsd / 1_000_000).toFixed(1)}M`
-                      : post.estimatedCostUsd >= 1_000
-                        ? `$${(post.estimatedCostUsd / 1_000).toFixed(0)}k`
-                        : `$${post.estimatedCostUsd}`
-                    : null;
+                const cost = formatUsd(post.estimatedCostUsd);
 
                 return (
                   <li

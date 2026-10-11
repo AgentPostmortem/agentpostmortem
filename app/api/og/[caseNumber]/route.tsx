@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { NextRequest } from "next/server";
 import { SEVERITY_LABELS } from "@/lib/constants/severity";
+import { formatUsd } from "@/lib/utils/format";
 
 interface CaseData {
   caseNumber: string;
@@ -69,13 +70,7 @@ export async function GET(
     const damageLevel = data?.damageLevel ?? 3;
     const severityLabel =
       SEVERITY_LABELS[damageLevel as 1 | 2 | 3 | 4 | 5] ?? "Moderate";
-    const costFormatted = data?.estimatedCostUsd
-      ? data.estimatedCostUsd >= 1_000_000
-        ? `$${(data.estimatedCostUsd / 1_000_000).toFixed(1)}M`
-        : data.estimatedCostUsd >= 1_000
-          ? `$${(data.estimatedCostUsd / 1_000).toFixed(0)}k`
-          : `$${data.estimatedCostUsd}`
-      : null;
+    const costFormatted = formatUsd(data?.estimatedCostUsd);
 
     return new ImageResponse(
       <div

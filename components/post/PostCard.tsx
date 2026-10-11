@@ -6,6 +6,8 @@ import { severityStyle } from "@/lib/constants/severity";
 import { incidentDate } from "@/lib/utils/incident-date";
 import type { Post } from "@/types";
 
+import { formatUsd } from "@/lib/utils/format";
+
 type PostCardProps = { post: Post; commentCount?: number };
 
 export function PostCard({ post, commentCount }: PostCardProps) {
@@ -18,14 +20,7 @@ export function PostCard({ post, commentCount }: PostCardProps) {
     timeZone: "UTC",
   }).format(new Date(incidentDate(post)));
 
-  const cost =
-    post.estimatedCostUsd != null
-      ? post.estimatedCostUsd >= 1_000_000
-        ? `$${(post.estimatedCostUsd / 1_000_000).toFixed(1)}M`
-        : post.estimatedCostUsd >= 1_000
-          ? `$${(post.estimatedCostUsd / 1_000).toFixed(0)}k`
-          : `$${post.estimatedCostUsd}`
-      : null;
+  const cost = formatUsd(post.estimatedCostUsd);
 
   return (
     <article className="group relative flex overflow-hidden rounded-sm border border-border-default bg-bg-surface transition-colors hover:border-border-strong hover:bg-bg-elevated">

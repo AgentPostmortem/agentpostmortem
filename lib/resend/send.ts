@@ -2,7 +2,7 @@ import { Resend } from "resend";
 import { EditTokenEmail } from "./templates/EditTokenEmail";
 import { getSiteUrl } from "@/lib/utils/urls";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy");
 
 interface SendEditTokenEmailParams {
   to: string;

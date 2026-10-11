@@ -1,0 +1,9 @@
+allowBuilds:
+  '0': esbuild
+  '1': sharp
+  '2': unrs-resolver
+  '3': workerd
+  esbuild: set this to true or false
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false
+  workerd: set this to true or false
