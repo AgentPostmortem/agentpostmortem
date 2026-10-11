@@ -17,8 +17,8 @@
     "db": "npx supabase db query --db-url \"$DATABASE_URL_ENCODED\""
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1140.0",
-    "@aws-sdk/s3-request-presigner": "^3.1140.0",
+    "@aws-sdk/client-s3": "^3.1145.0",
+    "@aws-sdk/s3-request-presigner": "^3.1145.0",
     "@opennextjs/cloudflare": "~1.15.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
@@ -30,8 +30,8 @@
     "postcss": "^8.5.28",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "resend": "^6.29.0",
-    "sharp": "^0.35.4",
+    "resend": "^6.32.0",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^3.4.4",
     "zod": "^4.6.5"
