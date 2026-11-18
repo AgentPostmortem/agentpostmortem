@@ -63,6 +63,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+import typing_extensions
+
 from agentpostmortem.agents.base import CheckpointStore
 from agentpostmortem.domain.outcome import AgentOutcome, Status
 from agentpostmortem.domain.scenario import Scenario
@@ -110,8 +112,9 @@ def _json_schema(kind: Any) -> dict[str, Any]:
             return {"type": "array"}
         schemas = [_json_schema(item) for item in items]
         return {"type": "array", "items": schemas[0] if len(schemas) == 1 else {"anyOf": schemas}}
-    if typing.is_typeddict(kind):
-        hints = typing.get_type_hints(kind)
+    # _script builds TypedDicts with typing_extensions, which typing.is_typeddict misses.
+    if typing_extensions.is_typeddict(kind):
+        hints = typing_extensions.get_type_hints(kind)
         return {
             "type": "object",
             "properties": {name: _json_schema(hint) for name, hint in hints.items()},

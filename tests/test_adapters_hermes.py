@@ -11,9 +11,10 @@ import http.client
 import json
 import threading
 from collections.abc import Iterator
-from typing import Any, TypedDict
+from typing import Any
 
 import pytest
+from typing_extensions import TypedDict
 
 from agentpostmortem import adapters
 from agentpostmortem.adapters import FrameworkNotInstalledError, get_adapter, hermes
@@ -249,6 +250,35 @@ def test_without_faults_the_plan_runs_once_and_completes(
 class Line(TypedDict):
     sku: str
     quantity: int
+
+
+def test_tool_schemas_for_script_generated_typeddicts() -> None:
+    """The real shapes _script builds for dict arguments become object schemas."""
+    specs = tool_specs(
+        Scenario.model_validate(
+            {
+                "id": "APM-S901",
+                "title": "t",
+                "category": "bad_data",
+                "incident": {"pattern": "p", "summary": "s"},
+                "task": "t",
+                "services": ["kv"],
+                "plan": [
+                    {
+                        "id": "save",
+                        "service": "kv",
+                        "operation": "put",
+                        "args": {"key": "k", "value": {"email": "a@b.co", "plan": "pro"}},
+                    }
+                ],
+                "oracles": [{"name": "no_duplicate_effects"}],
+            }
+        )
+    )
+    value = next(arg for spec in specs for arg in spec.args if arg.name == "value")
+    schema = hermes._arg_schema(value)
+    assert schema["type"] == "object"
+    assert set(schema["properties"]) == {"email", "plan"}
 
 
 def test_tool_schemas_type_lists_and_objects() -> None:
