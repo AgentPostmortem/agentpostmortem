@@ -131,8 +131,12 @@ class HermesInstall:
 
 
 def _default_plugin_dir() -> Path:
-    # src/agentpostmortem/adapters/hermes.py -> repository root.
-    return Path(__file__).resolve().parents[3] / "integrations" / "hermes" / "plugin"
+    package = Path(__file__).resolve().parents[1]
+    installed = package / "_hermes_plugin"
+    if installed.is_dir():
+        return installed  # bundled in the wheel
+    # Source checkout: src/agentpostmortem/adapters/hermes.py -> repository root.
+    return package.parents[1] / "integrations" / "hermes" / "plugin"
 
 
 def locate() -> HermesInstall:

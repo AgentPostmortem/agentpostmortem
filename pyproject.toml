@@ -1,6 +1,6 @@
 [project]
 name = "agentpostmortem"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Find out how your AI agent fails before your customers do. Open reliability benchmark and fault-injection runner for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
@@ -47,6 +47,15 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentpostmortem"]
+
+# Installed packages carry the public benchmark and the Hermes plugin, so
+# `pip install agentpostmortem` is enough to run every scenario.
+[tool.hatch.build.targets.wheel.force-include]
+"scenarios" = "agentpostmortem/_scenarios"
+"integrations/hermes/plugin" = "agentpostmortem/_hermes_plugin"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "scenarios", "integrations", "tests", "docs", "README.md", "LICENSE", "CHANGELOG.md"]
 
 [tool.ruff]
 line-length = 100

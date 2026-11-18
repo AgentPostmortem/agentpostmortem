@@ -71,9 +71,11 @@ def resolve_scenarios_dir(explicit: str | None, cwd: Path | None = None) -> Path
     for directory in (start, *start.parents):
         if _has_scenarios(directory / "scenarios"):
             return directory / "scenarios"
-    bundled = Path(__file__).resolve().parents[2] / "scenarios"
-    if _has_scenarios(bundled):
-        return bundled
+    package = Path(__file__).resolve().parent
+    # Installed wheel first, then the scenarios/ folder of a source checkout.
+    for bundled in (package / "_scenarios", package.parents[1] / "scenarios"):
+        if _has_scenarios(bundled):
+            return bundled
     raise UsageError("no scenarios directory found; pass --scenarios DIR or set " + SCENARIOS_ENV)
 
 
