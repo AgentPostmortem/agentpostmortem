@@ -32,6 +32,9 @@ class FaultKind(StrEnum):
     LYING = "lying"
     """A fast, well formed response that is wrong."""
 
+    PARTIAL = "partial"
+    """A batch call succeeds as a whole but some items in it fail."""
+
 
 class Trigger(BaseModel):
     """When a fault fires, counted per service operation (1-based)."""
