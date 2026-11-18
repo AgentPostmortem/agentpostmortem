@@ -22,6 +22,7 @@ def test_unknown_adapter_is_rejected() -> None:
 
 def test_missing_framework_names_the_install_command(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(importlib.util, "find_spec", lambda name, *args: None)
+    monkeypatch.delenv("APM_HERMES_SRC", raising=False)
     with pytest.raises(FrameworkNotInstalledError, match="frameworks"):
         get_adapter("langgraph")
     assert available() == []
@@ -30,5 +31,5 @@ def test_missing_framework_names_the_install_command(monkeypatch: pytest.MonkeyP
 
 def test_registry_lists_both_frameworks() -> None:
     frameworks = {info.framework for info in ADAPTERS.values()}
-    assert frameworks == {"langgraph", "openai-agents"}
+    assert frameworks == {"langgraph", "openai-agents", "hermes"}
     assert all(info.name == name for name, info in ADAPTERS.items())

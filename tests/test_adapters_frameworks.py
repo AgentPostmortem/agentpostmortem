@@ -37,7 +37,8 @@ def adapter(name: str) -> Any:
 
 
 def test_every_adapter_has_expectations() -> None:
-    assert set(EXPECTED) == set(ADAPTERS)
+    # Out-of-process frameworks (Hermes) pin their verdicts in their own test module.
+    assert set(EXPECTED) == {n for n, info in ADAPTERS.items() if info.locator is None}
 
 
 @pytest.mark.parametrize("index", range(len(SCENARIO_IDS)), ids=SCENARIO_IDS)
