@@ -50,7 +50,7 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Run every scenario against every agent and framework adapter
         run: uv run apm run --scenario all --agent all --out apm-results
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: apm-results
           path: apm-results/
