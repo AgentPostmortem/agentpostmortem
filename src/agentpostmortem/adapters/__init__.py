@@ -97,6 +97,24 @@ ADAPTERS: dict[str, AdapterInfo] = {
             "tool errors become an error result to the model.",
             locator="is_available",
         ),
+        AdapterInfo(
+            "claude-agent-sdk",
+            "claude-agent-sdk",
+            "agentpostmortem.adapters.claude_agent",
+            ("claude_agent_sdk",),
+            "query() with in-process SDK MCP tools and default settings; a tool "
+            "exception becomes an error result to the model. Needs the Claude Code CLI.",
+            locator="is_available",
+        ),
+        AdapterInfo(
+            "claude-agent-sdk-resume",
+            "claude-agent-sdk",
+            "agentpostmortem.adapters.claude_agent",
+            ("claude_agent_sdk",),
+            "query() as above; after a crash the run resumes the session by id "
+            "(resume=session_id). Needs the Claude Code CLI.",
+            locator="is_available",
+        ),
     )
 }
 

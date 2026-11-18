@@ -31,5 +31,5 @@ def test_missing_framework_names_the_install_command(monkeypatch: pytest.MonkeyP
 
 def test_registry_lists_both_frameworks() -> None:
     frameworks = {info.framework for info in ADAPTERS.values()}
-    assert frameworks == {"langgraph", "openai-agents", "hermes"}
+    assert frameworks == {"langgraph", "openai-agents", "hermes", "claude-agent-sdk"}
     assert all(info.name == name for name, info in ADAPTERS.items())
