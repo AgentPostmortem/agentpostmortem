@@ -1,0 +1,56 @@
+[project]
+name = "agentpostmortem"
+version = "0.1.0.dev0"
+description = "Find out how your AI agent fails before your customers do. Open reliability benchmark and fault-injection runner for AI agents."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [{ name = "Royal Simpson Pinto", email = "work@royalpinto007.com" }]
+keywords = ["ai-agents", "reliability", "chaos-engineering", "fault-injection", "benchmark", "llm"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Testing",
+  "Typing :: Typed",
+]
+dependencies = ["pydantic>=2.9", "pyyaml>=6.0"]
+
+[project.urls]
+Homepage = "https://agentpostmortem.com"
+Repository = "https://github.com/AgentPostmortem/agentpostmortem"
+
+[project.scripts]
+apm = "agentpostmortem.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.8", "mypy>=1.13", "types-PyYAML>=6.0"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentpostmortem"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "PL"]
+ignore = ["PLR0913", "PLR2004"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tool errors mirror the names real HTTP clients use (Timeout, NotFound, Conflict).
+"src/agentpostmortem/sims/errors.py" = ["N818"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
