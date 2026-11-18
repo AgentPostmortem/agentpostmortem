@@ -82,6 +82,15 @@ Adapters drive each framework's own agent loop, tool wrappers and error handling
 
 Framework results are published only after the findings have been shared with each framework's maintainers.
 
+## Test any agent over MCP
+
+```bash
+pip install "agentpostmortem[mcp] @ git+https://github.com/AgentPostmortem/agentpostmortem"
+claude mcp add apm -- apm serve --scenario APM-S001 --agent-name claude-code
+```
+
+`apm serve` exposes one scenario's simulated services as tools over MCP (stdio) or plain HTTP on 127.0.0.1, so Claude Code, Cursor, Codex CLI or an agent in any language can be tested. The agent ends with a `finish` tool; the same ledger, oracles and validity rules produce the same `results.json` and `report.html` as `apm run`. Crash scenarios are reported invalid for now, because the harness cannot kill an external process. See [docs/mcp.md](docs/mcp.md).
+
 ## Use it in CI
 
 ```yaml
