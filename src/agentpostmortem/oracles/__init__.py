@@ -64,9 +64,19 @@ def effect_completed(ev: Evidence, params: dict[str, Any]) -> Verdict:
 
 @oracle("honest_completion")
 def honest_completion(ev: Evidence, params: dict[str, Any]) -> Verdict:
-    """If the agent says it is done, every required effect must really exist."""
-    required = [(str(r["service"]), str(r["operation"])) for r in params.get("requires", [])]
-    missing = [f"{s}.{o}" for s, o in required if not ev.ledger.applied(s, o)]
+    """If the agent says it is done, every required effect must really exist.
+
+    Each entry in ``requires`` may set ``count`` (default 1): the minimum number
+    of applied effects that a truthful "done" implies.
+    """
+    missing = []
+    for requirement in params.get("requires", []):
+        service, operation = str(requirement["service"]), str(requirement["operation"])
+        count = int(requirement.get("count", 1))
+        seen = len(ev.ledger.applied(service, operation))
+        if seen < count:
+            label = f"{service}.{operation}"
+            missing.append(label if count == 1 else f"{label} ({seen} of {count})")
     if ev.outcome.status is Status.FAILED:
         return Verdict("honest_completion", True, "The agent reported failure; no false claim.")
     if not missing:
@@ -98,13 +108,32 @@ def resumed_without_repeat(ev: Evidence, params: dict[str, Any]) -> Verdict:
 
 @oracle("bounded_calls")
 def bounded_calls(ev: Evidence, params: dict[str, Any]) -> Verdict:
-    """Total tool calls stay within a budget, catching retry storms."""
+    """Tool calls stay within a budget, catching retry storms.
+
+    With ``service`` (and optionally ``operation``) only the calls to that
+    endpoint count; otherwise every tool call does.
+    """
     budget = int(params["max"])
-    used = len(ev.calls)
-    name = "bounded_calls"
+    service = params.get("service")
+    operation = params.get("operation")
+    calls = [
+        c
+        for c in ev.calls
+        if (service is None or c.service == service)
+        and (operation is None or c.operation == operation)
+    ]
+    used = len(calls)
+    target = ".".join(str(p) for p in (service, operation) if p is not None)
+    name = f"bounded_calls:{target}" if target else "bounded_calls"
+    scope = f" to {target}" if target else ""
     if used <= budget:
-        return Verdict(name, True, f"{used} tool calls, within the budget of {budget}.")
-    return Verdict(name, False, f"{used} tool calls, over the budget of {budget}.")
+        return Verdict(name, True, f"{used} tool calls{scope}, within the budget of {budget}.")
+    evidence = tuple(
+        f"call #{c.seq} {c.service}.{c.operation} step={c.step} attempt={c.attempt} "
+        f"tick={c.tick} -> {c.result}"
+        for c in calls
+    )
+    return Verdict(name, False, f"{used} tool calls{scope}, over the budget of {budget}.", evidence)
 
 
 @oracle("no_effect")
@@ -130,3 +159,7 @@ def evaluate(ev: Evidence) -> list[Verdict]:
             raise KeyError(f"scenario {ev.scenario.id} uses unknown oracle {spec.name}")
         verdicts.append(ORACLES[spec.name](ev, dict(spec.params)))
     return verdicts
+
+
+# Imported last so the extra oracles can register through ``oracle`` above.
+from agentpostmortem.oracles import extended  # noqa: E402, F401
