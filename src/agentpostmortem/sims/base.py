@@ -77,6 +77,7 @@ class SimService(Corruption):
         self.ledger = ledger
         self._faults = [f for f in (faults or []) if f.service == self.name]
         self._calls: defaultdict[str, int] = defaultdict(int)
+        self._fired: defaultdict[int, int] = defaultdict(int)
         self.operations: dict[str, Handler] = {}
         self._quotas = {
             index: Quota(int(f.params["limit"]), int(f.params["window"]))
@@ -89,6 +90,14 @@ class SimService(Corruption):
 
     def calls(self, operation: str) -> int:
         return self._calls[operation]
+
+    def fault_activity(self) -> list[tuple[FaultSpec, int]]:
+        """Each declared fault with how many calls it actually affected.
+
+        A quota counts only the calls it rejected. A run where a declared fault
+        never fired did not test what the scenario claims to test.
+        """
+        return [(fault, self._fired[index]) for index, fault in enumerate(self._faults)]
 
     def call(self, operation: str, **kwargs: Any) -> dict[str, Any]:
         if operation not in self.operations:
@@ -108,8 +117,13 @@ class SimService(Corruption):
             return self.operations[operation](**kwargs)
         index, fault = firing
         if index in self._quotas:
-            self._quotas[index].admit(self.ledger.clock.now)
+            try:
+                self._quotas[index].admit(self.ledger.clock.now)
+            except RateLimited:
+                self._fired[index] += 1
+                raise
             return self.operations[operation](**kwargs)
+        self._fired[index] += 1
         return self._apply(fault, operation, kwargs)
 
     def _apply(self, fault: FaultSpec, operation: str, kwargs: dict[str, Any]) -> dict[str, Any]:
