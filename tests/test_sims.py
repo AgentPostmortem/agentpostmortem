@@ -4,7 +4,17 @@ import pytest
 
 from agentpostmortem.domain.faults import FaultKind, FaultSpec, Trigger
 from agentpostmortem.ledger import Ledger
-from agentpostmortem.sims import Email, Inventory, Payments
+from agentpostmortem.sims import (
+    Email,
+    Helpdesk,
+    Inventory,
+    KeyValue,
+    Llm,
+    Orders,
+    Payments,
+    Quota,
+    Sms,
+)
 from agentpostmortem.sims.errors import (
     Conflict,
     InvalidRequest,
@@ -116,3 +126,135 @@ def test_stale_read_and_conditional_write() -> None:
 def test_unknown_operation_is_rejected() -> None:
     with pytest.raises(ValueError, match="no operation"):
         Payments(Ledger()).call("teleport")
+
+
+def test_quota_rejects_until_the_window_resets() -> None:
+    ledger = Ledger()
+    llm = Llm(ledger)
+    llm.seed({"quota": {"complete": {"limit": 2, "window": 10}}, "tokens": 7})
+    llm.call("complete", prompt="a")
+    llm.call("complete", prompt="b")
+    with pytest.raises(RateLimited) as limited:
+        llm.call("complete", prompt="c")
+    assert limited.value.retry_after == 7  # the call happened at tick 3
+    ledger.clock.tick(limited.value.retry_after)
+    llm.call("complete", prompt="c")
+    assert [e.payload["tokens"] for e in ledger.applied("llm", "complete")] == [7, 7, 7]
+
+
+def test_quota_rejects_bad_config() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        Quota(0, 10)
+
+
+def test_llm_ignores_idempotency_keys_and_bills_every_call() -> None:
+    ledger = Ledger()
+    llm = Llm(ledger)
+    llm.call("complete", prompt="p", idempotency_key="k")
+    llm.call("complete", prompt="p", idempotency_key="k")
+    assert len(ledger.applied("llm", "complete")) == 2
+    with pytest.raises(InvalidRequest):
+        llm.call("complete", prompt="")
+
+
+def test_kv_conditional_put_and_claim() -> None:
+    ledger = Ledger()
+    kv = KeyValue(ledger)
+    kv.call("put", key="evt", value="claimed", expected_version=0)
+    with pytest.raises(Conflict):
+        kv.call("put", key="evt", value="claimed", expected_version=0)
+    assert kv.call("get", key="evt") == {"key": "evt", "value": "claimed", "version": 1}
+    kv.call("put", key="evt", value="done", expected_version=1)
+    assert kv.values["evt"] == "done"
+    assert [e.payload["version"] for e in ledger.applied("kv", "put")] == [1, 2]
+    with pytest.raises(NotFound):
+        kv.call("get", key="missing")
+
+
+def test_kv_incr_ignores_keys_and_stale_read_is_one_write_behind() -> None:
+    ledger = Ledger()
+    faults = [FaultSpec(service="kv", operation="get", kind=FaultKind.STALE)]
+    kv = KeyValue(ledger, faults)
+    kv.seed({"entries": {"seq": 1000, "inv": "paid"}, "history": {"inv": ["unpaid"]}})
+    assert kv.call("get", key="inv") == {"key": "inv", "value": "unpaid", "version": 1}
+    assert kv.call("get", key="inv")["version"] == 2
+    kv.call("incr", key="seq", idempotency_key="k")
+    assert kv.call("incr", key="seq", idempotency_key="k")["value"] == 1002
+    assert len(ledger.applied("kv", "incr")) == 2
+    with pytest.raises(InvalidRequest):
+        kv.call("incr", key="inv")
+
+
+def test_helpdesk_key_support_differs_per_operation() -> None:
+    ledger = Ledger()
+    desk = Helpdesk(ledger)
+    first = desk.call("create_ticket", customer="c", subject="s", idempotency_key="k")
+    assert desk.call("create_ticket", customer="c", subject="s", idempotency_key="k") == first
+    ticket = first["ticket"]
+    desk.call("comment", ticket=ticket, body="b", idempotency_key="k2")
+    desk.call("comment", ticket=ticket, body="b", idempotency_key="k2")
+    assert len(ledger.applied("helpdesk", "comment")) == 2
+    desk.call("close_ticket", ticket=ticket)
+    desk.call("close_ticket", ticket=ticket)
+    assert [e.applied for e in ledger if e.operation == "close_ticket"] == [True, False]
+    with pytest.raises(NotFound):
+        desk.call("comment", ticket="t_missing", body="b")
+
+
+def test_helpdesk_malformed_customer_has_null_fields() -> None:
+    ledger = Ledger()
+    fault = FaultSpec(service="helpdesk", operation="get_customer", kind=FaultKind.MALFORMED)
+    desk = Helpdesk(ledger, [fault])
+    desk.seed({"customers": {"cus": {"email": "a@b.c", "name": "Ada"}}})
+    assert desk.call("get_customer", customer="cus") == {
+        "customer": "cus",
+        "email": None,
+        "name": None,
+    }
+    assert desk.call("get_customer", customer="cus")["email"] == "a@b.c"
+    desk.call("update_customer", customer="cus", email=None)
+    assert ledger.applied("helpdesk", "update_customer")[0].payload == {"email": None}
+
+
+def test_sms_ignores_keys_so_retries_send_again() -> None:
+    ledger = Ledger()
+    fault = FaultSpec(service="sms", operation="send", kind=FaultKind.TIMEOUT_AFTER_SUCCESS)
+    sms = Sms(ledger, [fault])
+    with pytest.raises(ToolTimeout):
+        sms.call("send", to="+15550100", body="hi", idempotency_key="k")
+    sms.call("send", to="+15550100", body="hi", idempotency_key="k")
+    assert len(ledger.applied("sms", "send")) == 2
+    with pytest.raises(InvalidRequest):
+        sms.call("send", to="nobody", body="hi")
+
+
+def test_orders_lying_quote_and_reconcile() -> None:
+    fault = FaultSpec(service="orders", operation="quote", kind=FaultKind.LYING)
+    orders = Orders(Ledger(), [fault])
+    lines = [{"sku": "a", "amount": 4999}, {"sku": "b", "amount": 1500}]
+    orders.seed({"orders": {"o": {"customer": "c", "lines": lines, "discount": 1500}}})
+    lie = orders.call("quote", order="o")["total"]
+    assert lie == 6499
+    with pytest.raises(Conflict):
+        orders.call("reconcile", order="o", total=lie)
+    assert orders.call("quote", order="o")["total"] == 4999
+    assert orders.call("reconcile", order="o", total=4999)["total"] == 4999
+    assert len(orders.ledger) == 0
+
+
+def test_email_batch_reports_partial_failure_and_replays_by_key() -> None:
+    ledger = Ledger()
+    email = Email(ledger)
+    email.seed({"suppressed": ["bo@example.com"]})
+    recipients = ["a@example.com", "bo@example.com", "c@example.com"]
+    first = email.call("send_batch", recipients=recipients, subject="s", idempotency_key="k")
+    assert first == {"status": "partial", "sent": 2, "failed": ["bo@example.com"]}
+    assert (
+        email.call("send_batch", recipients=recipients, subject="s", idempotency_key="k") == first
+    )
+    assert len(ledger.applied("email", "send")) == 2
+    assert [e.applied for e in ledger] == [True, True, False, False]
+    with pytest.raises(InvalidRequest):
+        email.call("send", to="bo@example.com", subject="s")
+    with pytest.raises(InvalidRequest):
+        email.call("send", to=None, subject="s")

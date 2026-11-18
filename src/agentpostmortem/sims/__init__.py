@@ -2,15 +2,37 @@
 
 from __future__ import annotations
 
-from agentpostmortem.sims.base import SimService
+from agentpostmortem.sims.base import Quota, SimService
 from agentpostmortem.sims.email import Email
+from agentpostmortem.sims.helpdesk import Helpdesk
 from agentpostmortem.sims.inventory import Inventory
+from agentpostmortem.sims.kv import KeyValue
+from agentpostmortem.sims.llm import Llm
+from agentpostmortem.sims.orders import Orders
 from agentpostmortem.sims.payments import Payments
+from agentpostmortem.sims.sms import Sms
 
 SERVICES: dict[str, type[SimService]] = {
     Payments.name: Payments,
     Email.name: Email,
     Inventory.name: Inventory,
+    KeyValue.name: KeyValue,
+    Helpdesk.name: Helpdesk,
+    Sms.name: Sms,
+    Llm.name: Llm,
+    Orders.name: Orders,
 }
 
-__all__ = ["SERVICES", "Email", "Inventory", "Payments", "SimService"]
+__all__ = [
+    "SERVICES",
+    "Email",
+    "Helpdesk",
+    "Inventory",
+    "KeyValue",
+    "Llm",
+    "Orders",
+    "Payments",
+    "Quota",
+    "SimService",
+    "Sms",
+]
