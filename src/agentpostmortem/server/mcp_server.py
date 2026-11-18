@@ -2,7 +2,7 @@
 
 Each service operation in the scenario's plan is one tool, plus ``wait`` and
 ``finish``. The server instructions carry the task and the plan. Needs the
-``mcp`` extra: ``pip install 'agentpostmortem[mcp]'``.
+``mcp`` extra: ``pip install 'agentpostmortem-bench[mcp]'``.
 """
 
 from __future__ import annotations

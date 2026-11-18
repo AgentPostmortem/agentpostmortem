@@ -5,7 +5,7 @@ handling and persistence, with the model replaced by a deterministic script that
 issues the scenario plan's tool calls. The frameworks are optional dependencies:
 this module imports them only when an adapter is requested.
 
-    pip install 'agentpostmortem[frameworks]'
+    pip install 'agentpostmortem-bench[frameworks]'
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 from agentpostmortem.agents.base import Agent
 
-INSTALL_HINT = "pip install 'agentpostmortem[frameworks]'"
+INSTALL_HINT = "pip install 'agentpostmortem-bench[frameworks]'"
 
 
 class FrameworkNotInstalledError(ImportError):

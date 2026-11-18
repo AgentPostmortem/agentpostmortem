@@ -272,7 +272,7 @@ def _serve_mcp(session: Session, on_call: Any, log: TextIO) -> None:
         from agentpostmortem.server.mcp_server import serve_stdio  # noqa: PLC0415
     except ImportError as exc:
         raise UsageError(
-            "the MCP transport needs the mcp extra: pip install 'agentpostmortem[mcp]'"
+            "the MCP transport needs the mcp extra: pip install 'agentpostmortem-bench[mcp]'"
         ) from exc
     print(f"apm serve: {session.scenario.id} over MCP on stdio", file=log, flush=True)
     serve_stdio(session, on_call)

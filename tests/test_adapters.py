@@ -26,7 +26,7 @@ def test_missing_framework_names_the_install_command(monkeypatch: pytest.MonkeyP
     with pytest.raises(FrameworkNotInstalledError, match="frameworks"):
         get_adapter("langgraph")
     assert available() == []
-    assert "agentpostmortem[frameworks]" in INSTALL_HINT
+    assert "agentpostmortem-bench[frameworks]" in INSTALL_HINT
 
 
 def test_registry_lists_both_frameworks() -> None:
