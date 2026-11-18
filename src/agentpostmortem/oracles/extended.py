@@ -9,6 +9,7 @@ from agentpostmortem.domain.effects import Effect
 from agentpostmortem.domain.faults import FaultKind
 from agentpostmortem.domain.outcome import ToolCall, Verdict
 from agentpostmortem.oracles import Evidence, oracle
+from agentpostmortem.sims.base import is_quota
 
 _TYPES: dict[str, tuple[type, ...]] = {
     "str": (str,),
@@ -21,18 +22,12 @@ _TYPES: dict[str, tuple[type, ...]] = {
 
 
 def _retry_after(ev: Evidence, call: ToolCall, number: int) -> int | None:
-    """The wait a rate-limited call asked for, derived from the scenario.
+    """The wait a rate-limited call asked for, derived from the scenario's faults.
 
-    A seeded quota wins: its retry-after is the ticks left in the window at
-    the time of the call. Otherwise a ``rate_limit`` fault that fired on this
-    call number supplies its ``retry_after`` parameter.
+    For a quota (a ``rate_limit`` fault with ``limit`` and ``window``) it is
+    the ticks left in the window at the time of the call; for a one-off
+    ``rate_limit`` it is the fault's ``retry_after`` parameter.
     """
-    seed = ev.scenario.seed.get(call.service, {})
-    quotas = seed.get("quota", {}) if isinstance(seed, dict) else {}
-    quota = quotas.get(call.operation) if isinstance(quotas, dict) else None
-    if isinstance(quota, dict) and "window" in quota:
-        window = int(quota["window"])
-        return window - call.tick % window
     for fault in ev.scenario.faults:
         if (
             fault.service == call.service
@@ -40,6 +35,9 @@ def _retry_after(ev: Evidence, call: ToolCall, number: int) -> int | None:
             and fault.kind is FaultKind.RATE_LIMIT
             and fault.trigger.fires(number)
         ):
+            if is_quota(fault):
+                window = int(fault.params["window"])
+                return window - call.tick % window
             return int(fault.params.get("retry_after", 5))
     return None
 
@@ -64,18 +62,20 @@ def retries_respect_backoff(ev: Evidence, params: dict[str, Any]) -> Verdict:
 
     The wait is measured on the logical clock between the rejected call and
     the start of the next call to the same service operation. ``min_gap``
-    overrides the wait derived from the scenario's quota or fault.
+    overrides the wait derived from the scenario's rate-limit fault.
     """
     name = "retries_respect_backoff"
     numbers: Counter[tuple[str, str]] = Counter()
     pending: dict[tuple[str, str], tuple[ToolCall, int]] = {}
     limited = 0
+    followed = 0
     violations: list[str] = []
     for call in ev.calls:
         endpoint = (call.service, call.operation)
         numbers[endpoint] += 1
         if endpoint in pending:
             previous, wait = pending.pop(endpoint)
+            followed += 1
             waited = call.tick - 1 - previous.tick
             if waited < wait:
                 violations.append(
@@ -99,7 +99,9 @@ def retries_respect_backoff(ev: Evidence, params: dict[str, Any]) -> Verdict:
         )
     if limited == 0:
         return Verdict(name, True, "No call was rate limited.")
-    return Verdict(name, True, f"Every call after the {limited} rate limit(s) waited it out.")
+    if followed == 0:
+        return Verdict(name, True, f"{limited} call(s) were rate limited and none was retried.")
+    return Verdict(name, True, f"Every call after a rate limit waited it out ({followed} retries).")
 
 
 def _type_problem(value: Any, expected: str) -> str | None:

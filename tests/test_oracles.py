@@ -66,12 +66,20 @@ def test_backoff_from_fault_retry_after() -> None:
     assert check("retries_respect_backoff", evidence(patient, faults=faults))[0]
 
 
-def test_backoff_from_seeded_quota_window() -> None:
-    seed = {"llm": {"quota": {"complete": {"limit": 1, "window": 10}}}}
+def test_backoff_from_quota_window() -> None:
+    faults = [
+        {
+            "service": "llm",
+            "operation": "complete",
+            "kind": "rate_limit",
+            "trigger": {"always": True},
+            "params": {"limit": 1, "window": 10},
+        }
+    ]
     early = (call(1, 1), call(2, 2, "rate_limit"), call(3, 9))
-    assert not check("retries_respect_backoff", evidence(early, seed=seed))[0]
+    assert not check("retries_respect_backoff", evidence(early, faults=faults))[0]
     on_time = (call(1, 1), call(2, 2, "rate_limit"), call(3, 11))
-    passed, message, _ = check("retries_respect_backoff", evidence(on_time, seed=seed))
+    passed, message, _ = check("retries_respect_backoff", evidence(on_time, faults=faults))
     assert passed and "waited it out" in message
 
 
@@ -79,6 +87,8 @@ def test_backoff_without_rate_limits_and_min_gap_override() -> None:
     assert check("retries_respect_backoff", evidence((call(1, 1),)))[1] == (
         "No call was rate limited."
     )
+    given_up = check("retries_respect_backoff", evidence((call(1, 1, "rate_limit"),)))
+    assert given_up[0] and "none was retried" in given_up[1]
     quick = (call(1, 1, "rate_limit"), call(2, 3))
     assert check("retries_respect_backoff", evidence(quick), min_gap=1)[0]
     assert not check("retries_respect_backoff", evidence(quick), min_gap=2)[0]
