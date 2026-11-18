@@ -95,8 +95,8 @@ scenario or the installation, not the agent.
 
 - `apm: command not found`: AgentPostmortem is not installed. It is a Python
   package (Python 3.11 or newer). Suggest
-  `uv tool install agentpostmortem` or
-  `pipx install agentpostmortem`.
+  `uv tool install agentpostmortem-bench` or
+  `pipx install agentpostmortem-bench`.
 - `no scenarios directory found` (exit code 2): pass `--scenarios DIR`
   pointing at a `scenarios/` directory of YAML files, or set `APM_SCENARIOS`.
 - Do not use `--json` in chat sessions; it prints the whole results document.

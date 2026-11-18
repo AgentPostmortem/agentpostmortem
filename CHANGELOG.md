@@ -2,7 +2,7 @@
 
 ## 0.1.0 (18 November 2026)
 
-First public release.
+First public release, published on PyPI as `agentpostmortem-bench` (the command is `apm`, the import is `agentpostmortem`).
 
 - 25 incident scenarios across six categories: duplicate effects, honest completion, progress and resume, bad data, runaway cost and compound failures.
 - Deterministic simulated services (payments, email, SMS, helpdesk, inventory, orders, key-value store, model API, event feed) with real semantics such as idempotency keys, conditional writes and quotas.
