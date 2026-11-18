@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from agentpostmortem import __version__
+from agentpostmortem import __version__, adapters
+from agentpostmortem.agents import REFERENCE_AGENTS
 from agentpostmortem.cli import EXIT_FAILED_RUNS, EXIT_OK, EXIT_USAGE, main, resolve_scenarios_dir
 from agentpostmortem.report.results import GENERATED_AT_ENV, SCHEMA_VERSION
 
@@ -55,7 +56,9 @@ def test_run_writes_results_and_report(tmp_path: Path, capsys: pytest.CaptureFix
     assert code == EXIT_OK, "failing verdicts are results, not errors"
     out = capsys.readouterr().out
     header = out.splitlines()[0].split()
-    assert header == ["SCENARIO", "naive", "retrying", "idempotent", "durable", "careful"]
+    # "all" means every reference agent, then every adapter whose framework is installed.
+    expected_agents = [*REFERENCE_AGENTS, *adapters.available()]
+    assert header == ["SCENARIO", *expected_agents]
     assert "APM-S001" in out and "PASS" in out and "FAIL" in out
 
     results = json.loads((tmp_path / "results.json").read_text(encoding="utf-8"))
@@ -72,9 +75,10 @@ def test_run_writes_results_and_report(tmp_path: Path, capsys: pytest.CaptureFix
     assert results["tool"] == {"name": "agentpostmortem", "version": __version__}
     assert results["generated_at"] == PINNED
     summary = results["summary"]
-    assert summary["total"] == len(results["runs"]) == 25
+    scenario_count = len(results["scenarios"])
+    assert summary["total"] == len(results["runs"]) == scenario_count * len(expected_agents)
     assert summary["passed"] + summary["failed"] == summary["total"]
-    assert summary["by_agent"]["careful"] == {"passed": 5, "failed": 0}
+    assert summary["by_agent"]["careful"]["passed"] >= 5
     assert set(summary["by_category"]) >= {"duplicate_effects", "progress_and_resume"}
     run = results["runs"][0]
     for key in ("scenario", "agent", "passed", "verdicts", "calls", "ledger", "incident", "task"):

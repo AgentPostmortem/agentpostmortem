@@ -22,8 +22,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
-from agentpostmortem import __version__
-from agentpostmortem.agents import REFERENCE_AGENTS, reference_agent
+from agentpostmortem import __version__, adapters
+from agentpostmortem.agents import REFERENCE_AGENTS, Agent, reference_agent
 from agentpostmortem.domain.scenario import Scenario, load_scenarios
 from agentpostmortem.report.html import render_html
 from agentpostmortem.report.results import (
@@ -85,16 +85,32 @@ def _load(args: argparse.Namespace) -> list[Scenario]:
     return scenarios
 
 
-def _select(requested: list[str] | None, known: list[str], kind: str) -> list[str]:
-    """Expand ``all`` and check ids, keeping the order the user gave."""
+def _select(
+    requested: list[str] | None, known: list[str], kind: str, everything: list[str] | None = None
+) -> list[str]:
+    """Expand ``all`` and check ids, keeping the order the user gave.
+
+    ``everything`` is what ``all`` expands to when it differs from what may be
+    named explicitly (framework adapters are only included when installed).
+    """
     if not requested or "all" in requested:
-        return list(known)
+        return list(everything if everything is not None else known)
     unknown = [item for item in requested if item not in known]
     if unknown:
         raise UsageError(
             f"unknown {kind} {', '.join(unknown)}; choose from {', '.join(known)} or all"
         )
     return list(dict.fromkeys(requested))
+
+
+def _make_agent(name: str) -> Agent:
+    """A scripted reference agent, or a real framework run through its adapter."""
+    if name in REFERENCE_AGENTS:
+        return reference_agent(name)
+    try:
+        return adapters.get_adapter(name)
+    except adapters.FrameworkNotInstalledError as exc:
+        raise UsageError(str(exc)) from exc
 
 
 def format_table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> str:
@@ -164,10 +180,15 @@ def _matrix_table(results: dict[str, Any]) -> str:
 def cmd_run(args: argparse.Namespace, out: TextIO) -> int:
     scenarios = _load(args)
     scenario_ids = _select(args.scenario, [s.id for s in scenarios], "scenario")
-    agents = _select(args.agent, list(REFERENCE_AGENTS), "agent")
+    agents = _select(
+        args.agent,
+        [*REFERENCE_AGENTS, *adapters.ADAPTERS],
+        "agent",
+        everything=[*REFERENCE_AGENTS, *adapters.available()],
+    )
     by_id = {s.id: s for s in scenarios}
     chosen = [by_id[sid] for sid in scenario_ids]
-    runs = [run_record(run(s, reference_agent(a))) for s in chosen for a in agents]
+    runs = [run_record(run(s, _make_agent(a))) for s in chosen for a in agents]
     results = build_results(chosen, agents, runs, resolve_generated_at(args.generated_at))
 
     out_dir = Path(args.out)
@@ -234,7 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="extend",
         nargs="+",
         metavar="NAME",
-        help=f"reference agents ({', '.join(REFERENCE_AGENTS)}) or all",
+        help=(
+            f"reference agents ({', '.join(REFERENCE_AGENTS)}), framework adapters "
+            f"({', '.join(adapters.ADAPTERS)}) or all (adapters only when installed)"
+        ),
     )
     p_run.add_argument(
         "--out", default=DEFAULT_OUT, metavar="DIR", help=f"output directory ({DEFAULT_OUT})"
