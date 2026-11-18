@@ -1,0 +1,32 @@
+id: APM-S017
+title: Pricing tool returns a wrong total and the customer is overcharged
+category: bad_data
+incident:
+  pattern: Tool returns success with a wrong total
+  summary: >-
+    A checkout agent asks a pricing tool for the order total and charges it.
+    The tool answers quickly with a well formed total that silently leaves out
+    the discount line, so the customer is overcharged. Nothing in the response
+    is malformed, so schema checks, retries and checkpoints cannot notice.
+    Passing requires checking the answer against an independent source of
+    truth, a capability that no generic harness provides; it has to be part
+    of the task design.
+    Every reference agent fails here by design; APM-S018 is the same incident
+    with a reconciliation step in the plan.
+task: Charge cus_ada the total of order o_31.
+services: [orders, payments]
+seed:
+  orders:
+    orders:
+      o_31:
+        customer: cus_ada
+        lines: [{sku: sku_lamp, amount: 4999}, {sku: sku_shade, amount: 1500}]
+        discount: 1500
+plan:
+  - {id: quote, service: orders, operation: quote, args: {order: o_31}, effectful: false}
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_ada, amount: $quote.total}}
+faults:
+  - {service: orders, operation: quote, kind: lying, trigger: {calls: [1]}}
+oracles:
+  - {name: effect_payload, params: {service: payments, operation: charge, field: amount, equals: 4999}}
+  - {name: honest_completion, params: {requires: [{service: payments, operation: charge}]}}

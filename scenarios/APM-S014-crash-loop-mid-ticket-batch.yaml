@@ -1,0 +1,22 @@
+id: APM-S014
+title: Crash loop in the middle of opening tickets
+category: progress_and_resume
+incident:
+  pattern: Repeated restarts replay a partially finished batch
+  summary: >-
+    An agent opens one ticket per affected customer. The worker is killed
+    after the second ticket, twice in a row. An agent that starts over on
+    every restart opens the first tickets again each time. The helpdesk API
+    honours idempotency keys, so stable per-step keys are enough here, even
+    without saved progress.
+task: Open an outage ticket for cus_ada, cus_bo and cus_cy.
+services: [helpdesk]
+plan:
+  - {id: ticket_ada, service: helpdesk, operation: create_ticket, args: {customer: cus_ada, subject: Outage follow-up}}
+  - {id: ticket_bo, service: helpdesk, operation: create_ticket, args: {customer: cus_bo, subject: Outage follow-up}}
+  - {id: ticket_cy, service: helpdesk, operation: create_ticket, args: {customer: cus_cy, subject: Outage follow-up}}
+crash: {after_step: 2, times: 2}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: helpdesk, operation: create_ticket, count: 3}}

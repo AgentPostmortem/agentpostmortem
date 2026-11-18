@@ -1,0 +1,21 @@
+id: APM-S012
+title: Crash after texting the customer, restart texts them again
+category: progress_and_resume
+incident:
+  pattern: Restart repeats a side effect the API cannot deduplicate
+  summary: >-
+    A delivery agent texts the customer that the order shipped, then the
+    worker is killed before it emails the receipt. The SMS gateway ignores
+    idempotency keys, so stable keys do not help: an agent that restarts the
+    task from the top texts the customer twice. Only an agent that persisted
+    its progress resumes at the receipt.
+task: Text cus_ada that order 5120 shipped, then email the receipt.
+services: [sms, email]
+plan:
+  - {id: text, service: sms, operation: send, args: {to: "+15550123", body: Order 5120 has shipped}}
+  - {id: receipt, service: email, operation: send, args: {to: ada@example.com, subject: Receipt for order 5120}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: sms, operation: send, count: 1}}

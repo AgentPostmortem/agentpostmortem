@@ -1,0 +1,26 @@
+id: APM-S013
+title: Crash between allocating an invoice number and using it
+category: progress_and_resume
+incident:
+  pattern: Crash between two dependent writes
+  summary: >-
+    A billing agent allocates the next invoice number from a counter, then
+    writes it onto the order. The worker dies between the two writes. On
+    restart, an agent without durable progress allocates a fresh number, so
+    the first number is burned and the invoice sequence has a gap, which
+    auditors treat as a missing invoice. Resuming from a checkpoint reuses
+    the number already allocated.
+task: Allocate the next invoice number, record it on order o_7 and email the invoice.
+services: [kv, email]
+seed:
+  kv:
+    entries: {invoice_seq: 1000}
+plan:
+  - {id: allocate, service: kv, operation: incr, args: {key: invoice_seq, by: 1}}
+  - {id: record, service: kv, operation: put, args: {key: "order:o_7:invoice", value: $allocate.value}}
+  - {id: send, service: email, operation: send, args: {to: ada@example.com, subject: Your invoice}}
+crash: {after_step: 1}
+oracles:
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: kv, operation: incr, count: 1}}
+  - {name: final_state, params: {service: kv, operation: put, subject: "order:o_7:invoice", field: value, equals: 1001}}
