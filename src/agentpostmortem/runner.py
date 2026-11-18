@@ -100,6 +100,11 @@ def run(scenario: Scenario, agent: Agent) -> RunResult:
                 outcome = AgentOutcome(Status.FAILED, "Agent kept crashing.", ())
                 break
     evidence = oracles.Evidence(scenario, ledger, outcome, tuple(tools.calls), restarts)
+    meta: dict[str, Any] = {}
+    for attribute in ("framework", "framework_version"):
+        value = getattr(agent, attribute, None)
+        if isinstance(value, str):
+            meta[attribute] = value
     return RunResult(
         scenario,
         agent.name,
@@ -108,6 +113,7 @@ def run(scenario: Scenario, agent: Agent) -> RunResult:
         ledger,
         tuple(tools.calls),
         restarts,
+        meta,
     )
 
 
