@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import threading
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, TextIO
@@ -36,12 +37,14 @@ from agentpostmortem.report.results import (
     run_record,
 )
 from agentpostmortem.runner import run
+from agentpostmortem.server.session import DEFAULT_AGENT_NAME, ReportWriter, Session
 
 EXIT_OK = 0
 EXIT_FAILED_RUNS = 1
 EXIT_USAGE = 2
 SCENARIOS_ENV = "APM_SCENARIOS"
 DEFAULT_OUT = "apm-results"
+DEFAULT_PORT = 8765
 
 
 class UsageError(Exception):
@@ -225,6 +228,74 @@ def cmd_report(args: argparse.Namespace, out: TextIO) -> int:
     return EXIT_OK
 
 
+def cmd_serve(args: argparse.Namespace, out: TextIO) -> int:
+    """Serve one scenario to an external agent over MCP (stdio) or HTTP.
+
+    Status lines go to stderr: with the MCP transport stdout is the protocol.
+    """
+    scenarios = {s.id: s for s in _load(args)}
+    if args.scenario not in scenarios:
+        raise UsageError(
+            f"unknown scenario {args.scenario}; choose from {', '.join(sorted(scenarios))}"
+        )
+    scenario = scenarios[args.scenario]
+    session = Session(scenario, agent_name=args.agent_name, transport=args.transport)
+    writer = ReportWriter(session, Path(args.out), args.generated_at)
+    log = sys.stderr
+
+    def wrote(paths: tuple[Path, Path] | None) -> None:
+        if paths is not None:
+            print(f"apm serve: wrote {paths[0]} and {paths[1]}", file=log, flush=True)
+
+    if scenario.crash is not None:
+        print(
+            f"apm serve: warning: {scenario.id} declares a crash, which cannot be injected "
+            "into an external agent; the run will be reported invalid",
+            file=log,
+            flush=True,
+        )
+    try:
+        if args.transport == "mcp":
+            _serve_mcp(session, lambda: wrote(writer.after_call()), log)
+        else:
+            _serve_http(session, writer, args, wrote, log)
+    except OSError as exc:
+        raise UsageError(f"cannot serve or write results: {exc.strerror or exc}") from exc
+    wrote(writer.at_shutdown())
+    return EXIT_OK
+
+
+def _serve_mcp(session: Session, on_call: Any, log: TextIO) -> None:
+    try:
+        from agentpostmortem.server.mcp_server import serve_stdio  # noqa: PLC0415
+    except ImportError as exc:
+        raise UsageError(
+            "the MCP transport needs the mcp extra: pip install 'agentpostmortem[mcp]'"
+        ) from exc
+    print(f"apm serve: {session.scenario.id} over MCP on stdio", file=log, flush=True)
+    serve_stdio(session, on_call)
+
+
+def _serve_http(
+    session: Session, writer: ReportWriter, args: argparse.Namespace, wrote: Any, log: TextIO
+) -> None:
+    from agentpostmortem.server.http_front import SessionHTTPServer  # noqa: PLC0415
+
+    def on_call() -> None:
+        wrote(writer.after_call())
+        if args.exit_after_finish and session.finished:
+            threading.Thread(target=server.shutdown, daemon=True).start()
+
+    server = SessionHTTPServer(session, args.port, on_call)
+    print(f"apm serve: {session.scenario.id} over HTTP at {server.url}", file=log, flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="apm",
@@ -280,6 +351,49 @@ def build_parser() -> argparse.ArgumentParser:
         "-o", "--output", metavar="FILE", help="output file (default: report.html beside it)"
     )
     p_report.set_defaults(func=cmd_report)
+
+    p_serve = sub.add_parser(
+        "serve",
+        parents=[common],
+        help="serve one scenario's tools to any agent over MCP or HTTP",
+        description=(
+            "Expose a scenario's simulated services as tools so an agent in another "
+            "process (Claude Code, Cursor, Codex CLI, your own) can be tested. The agent "
+            "ends the run with the finish tool; results.json and report.html are written "
+            "then, or at shutdown. Crash scenarios are reported invalid."
+        ),
+    )
+    p_serve.add_argument("--scenario", required=True, metavar="ID", help="scenario id")
+    p_serve.add_argument(
+        "--transport", choices=("mcp", "http"), default="mcp", help="mcp (stdio) or http"
+    )
+    p_serve.add_argument(
+        "--port",
+        type=int,
+        default=DEFAULT_PORT,
+        metavar="N",
+        help=f"HTTP port on 127.0.0.1 ({DEFAULT_PORT}; 0 picks a free one)",
+    )
+    p_serve.add_argument(
+        "--out", default=DEFAULT_OUT, metavar="DIR", help=f"output directory ({DEFAULT_OUT})"
+    )
+    p_serve.add_argument(
+        "--agent-name",
+        default=DEFAULT_AGENT_NAME,
+        metavar="NAME",
+        help=f"agent name in the results ({DEFAULT_AGENT_NAME})",
+    )
+    p_serve.add_argument(
+        "--exit-after-finish",
+        action="store_true",
+        help="HTTP only: stop serving once the agent calls finish",
+    )
+    p_serve.add_argument(
+        "--generated-at",
+        metavar="TIMESTAMP",
+        help=f"pin the report timestamp (default: ${GENERATED_AT_ENV}, else now)",
+    )
+    p_serve.set_defaults(func=cmd_serve)
     return parser
 
 
