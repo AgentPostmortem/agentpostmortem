@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in apm, a simulated service, an oracle or an adapter does not behave as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected and what you saw.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The exact command, the scenario id and the agent or adapter name.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Output of `apm --version`, plus framework versions if an adapter is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Results file
+      description: Attach `results.json` or paste the relevant run. Remove anything private first.

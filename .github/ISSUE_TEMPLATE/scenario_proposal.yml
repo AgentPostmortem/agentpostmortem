@@ -1,0 +1,39 @@
+name: Scenario proposal
+description: Propose a new incident scenario for the benchmark.
+labels: [scenario]
+body:
+  - type: markdown
+    attributes:
+      value: Describe the failure pattern, not a company. No invented numbers, no private data.
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - duplicate_effects
+        - honest_completion
+        - progress_and_resume
+        - bad_data
+        - runaway_cost
+        - compound
+    validations:
+      required: true
+  - type: textarea
+    id: pattern
+    attributes:
+      label: Incident pattern
+      description: What goes wrong in production, and what it costs.
+    validations:
+      required: true
+  - type: textarea
+    id: faults
+    attributes:
+      label: Faults and checks
+      description: Which service fails, how and when, and what correct behaviour looks like.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: Public references
+      description: Links to public postmortems, issues or papers describing this kind of failure, if any.

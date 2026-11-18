@@ -1,0 +1,36 @@
+name: Framework finding
+description: A scenario shows a framework acting twice, losing progress or claiming false success.
+labels: [finding]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        If the finding could cause real harm (for example money moving twice) and is not yet known
+        to the framework's maintainers, email work@royalpinto007.com instead of opening a public
+        issue. We share findings with maintainers before publishing them.
+  - type: input
+    id: framework
+    attributes:
+      label: Framework and version
+      placeholder: langgraph 1.2.22
+    validations:
+      required: true
+  - type: input
+    id: scenario
+    attributes:
+      label: Scenario ids
+      placeholder: APM-S001, APM-S004
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What the framework did
+      description: Ledger lines and the final claim from results.json.
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Default settings, or which documented option you enabled.
