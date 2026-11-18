@@ -17,7 +17,10 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import cache
 from typing import Any
+
+from typing_extensions import TypedDict
 
 from agentpostmortem.domain.scenario import Scenario, Step
 from agentpostmortem.toolbox import Toolbox
@@ -77,7 +80,8 @@ class ArgSpec:
     """One argument of a framework tool, inferred from the plan."""
 
     name: str
-    types: tuple[type, ...]
+    types: tuple[Any, ...]
+    """Python annotations the argument accepts: scalars, ``list[...]`` or a ``TypedDict``."""
     required: bool
 
 
@@ -108,7 +112,7 @@ def tool_specs(scenario: Scenario) -> list[ToolSpec]:
             names.extend(k for k in step.args if k not in names)
         args = []
         for name in names:
-            types: list[type] = []
+            types: list[Any] = []
             for step in steps:
                 if name in step.args:
                     for kind in _arg_types(step.args[name]):
@@ -120,15 +124,49 @@ def tool_specs(scenario: Scenario) -> list[ToolSpec]:
     return specs
 
 
-def _arg_types(value: Any) -> tuple[type, ...]:
+def _arg_types(value: Any) -> tuple[Any, ...]:
+    """The annotations a plan value needs in a framework tool signature.
+
+    Lists become ``list[...]`` of their element types and mappings become a
+    ``TypedDict`` of their keys, so the framework derives a JSON schema that
+    accepts the value and still validates its shape (including strict schemas,
+    which need every array to name its items and every object its properties).
+    """
     if isinstance(value, str) and value.startswith("$"):
         # A reference to an earlier result: its type is only known at run time.
         return (int, str)
-    if isinstance(value, bool):
-        return (bool,)
-    if isinstance(value, int | float | str):
+    if value is None or isinstance(value, bool | int | float | str):
         return (type(value),)
+    if isinstance(value, Mapping):
+        return (_typed_dict(_shape(value)),)
+    if isinstance(value, list | tuple):
+        items: list[Any] = []
+        for item in value:
+            for kind in _arg_types(item):
+                if kind not in items:
+                    items.append(kind)
+        element: Any = items[0] if items else str
+        for kind in items[1:]:
+            element = element | kind
+        return (list[element],)
     return (str,)
+
+
+def _shape(value: Mapping[Any, Any]) -> tuple[tuple[str, tuple[Any, ...]], ...]:
+    return tuple((str(key), _arg_types(item)) for key, item in value.items())
+
+
+@cache
+def _typed_dict(shape: tuple[tuple[str, tuple[Any, ...]], ...]) -> Any:
+    """One ``TypedDict`` per distinct mapping shape, so equal shapes share a type."""
+    fields: dict[str, Any] = {}
+    for key, kinds in shape:
+        annotation: Any = kinds[0]
+        for kind in kinds[1:]:
+            annotation = annotation | kind
+        fields[key] = annotation
+    name = f"Mapping{_typed_dict.cache_info().currsize + 1}"
+    return TypedDict(name, fields)  # type: ignore[operator]
 
 
 class PlanScript:
