@@ -31,6 +31,9 @@ class AdapterInfo:
     requires: tuple[str, ...]
     """Top-level packages the adapter imports."""
     description: str
+    locator: str | None = None
+    """For a framework that runs out of process, the function in ``module`` that says
+    whether it can be found. It replaces the ``requires`` check."""
 
 
 ADAPTERS: dict[str, AdapterInfo] = {
@@ -85,6 +88,15 @@ ADAPTERS: dict[str, AdapterInfo] = {
             ("agents", "openai"),
             "Agent and Runner with a SQLiteSession kept across restarts.",
         ),
+        AdapterInfo(
+            "hermes",
+            "hermes",
+            "agentpostmortem.adapters.hermes",
+            (),
+            "AIAgent with default settings from a source checkout (APM_HERMES_SRC); "
+            "tool errors become an error result to the model.",
+            locator="is_available",
+        ),
     )
 }
 
@@ -94,6 +106,7 @@ def get_adapter(name: str) -> Agent:
     if name not in ADAPTERS:
         raise KeyError(f"unknown adapter {name!r}; choose from {sorted(ADAPTERS)}")
     info = ADAPTERS[name]
+    # An out-of-process framework has no requires; its make() says what is missing.
     for package in info.requires:
         if importlib.util.find_spec(package) is None:
             raise FrameworkNotInstalledError(
@@ -105,13 +118,18 @@ def get_adapter(name: str) -> Agent:
     return agent
 
 
+def _installed(info: AdapterInfo) -> bool:
+    if not all(importlib.util.find_spec(p) is not None for p in info.requires):
+        return False
+    if info.locator is None:
+        return True
+    found: bool = getattr(importlib.import_module(info.module), info.locator)()
+    return found
+
+
 def available() -> list[str]:
     """Adapters whose frameworks are installed."""
-    return [
-        name
-        for name, info in ADAPTERS.items()
-        if all(importlib.util.find_spec(p) is not None for p in info.requires)
-    ]
+    return [name for name, info in ADAPTERS.items() if _installed(info)]
 
 
 __all__ = [

@@ -1,0 +1,9 @@
+name: agentpostmortem
+version: "0.1.0"
+description: >-
+  Exposes the simulated services of an AgentPostmortem scenario as Hermes tools.
+  Used by the agentpostmortem Hermes adapter; each tool forwards its call to the
+  benchmark process on 127.0.0.1 and raises when the simulated service fails.
+author: AgentPostmortem
+provides_hooks:
+  - pre_tool_call
