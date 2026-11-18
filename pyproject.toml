@@ -14,7 +14,11 @@ classifiers = [
   "Topic :: Software Development :: Testing",
   "Typing :: Typed",
 ]
-dependencies = ["pydantic>=2.9", "pyyaml>=6.0"]
+dependencies = [
+    "pydantic>=2.9",
+    "pyyaml>=6.0",
+    "typing-extensions>=4.12",
+]
 
 [project.urls]
 Homepage = "https://agentpostmortem.com"
@@ -25,6 +29,7 @@ apm = "agentpostmortem.cli:main"
 
 [project.optional-dependencies]
 frameworks = [
+    "claude-agent-sdk>=0.2.184",
     "langchain>=1.5.0",
     "langgraph>=1.2.22",
     "openai-agents>=0.25.0",
