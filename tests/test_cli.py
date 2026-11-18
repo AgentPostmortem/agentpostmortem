@@ -77,7 +77,7 @@ def test_run_writes_results_and_report(tmp_path: Path, capsys: pytest.CaptureFix
     summary = results["summary"]
     scenario_count = len(results["scenarios"])
     assert summary["total"] == len(results["runs"]) == scenario_count * len(expected_agents)
-    assert summary["passed"] + summary["failed"] == summary["total"]
+    assert summary["passed"] + summary["failed"] + summary["invalid"] == summary["total"]
     assert summary["by_agent"]["careful"]["passed"] >= 5
     assert set(summary["by_category"]) >= {"duplicate_effects", "progress_and_resume"}
     run = results["runs"][0]

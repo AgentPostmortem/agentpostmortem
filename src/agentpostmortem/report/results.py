@@ -53,20 +53,33 @@ def run_record(result: RunResult) -> dict[str, Any]:
     return record
 
 
+def run_state(run: Mapping[str, Any]) -> str:
+    """``passed``, ``failed`` or ``invalid``.
+
+    A run is invalid when a declared fault never fired or a declared crash never
+    happened, so it did not test what the scenario claims. Invalid runs count
+    neither as passes nor as failures. Files without the field count as valid.
+    """
+    if run.get("valid") is False:
+        return "invalid"
+    return "passed" if run.get("passed") else "failed"
+
+
 def _tally(runs: Iterable[Mapping[str, Any]], key: str) -> dict[str, dict[str, int]]:
     counts: dict[str, dict[str, int]] = {}
     for run in runs:
-        bucket = counts.setdefault(str(run.get(key, "")), {"passed": 0, "failed": 0})
-        bucket["passed" if run.get("passed") else "failed"] += 1
+        bucket = counts.setdefault(str(run.get(key, "")), {"passed": 0, "failed": 0, "invalid": 0})
+        bucket[run_state(run)] += 1
     return counts
 
 
 def summarize(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
-    passed = sum(1 for run in runs if run.get("passed"))
+    states = [run_state(run) for run in runs]
     return {
         "total": len(runs),
-        "passed": passed,
-        "failed": len(runs) - passed,
+        "passed": states.count("passed"),
+        "failed": states.count("failed"),
+        "invalid": states.count("invalid"),
         "by_agent": _tally(runs, "agent"),
         "by_category": _tally(runs, "category"),
     }

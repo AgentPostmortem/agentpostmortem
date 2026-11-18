@@ -13,6 +13,8 @@ import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from agentpostmortem.report.results import run_state
+
 PASS_ICON = "✓"
 FAIL_ICON = "✗"
 
@@ -42,10 +44,18 @@ def _rate(passed: int, total: int) -> int:
     return round(100 * passed / total) if total else 0
 
 
-def badge(passed: bool, *, small: bool = False) -> str:
-    cls = "pass" if passed else "fail"
-    icon = PASS_ICON if passed else FAIL_ICON
-    text = "PASS" if passed else "FAIL"
+INVALID_ICON = "○"
+_STATES = {
+    "passed": ("pass", PASS_ICON, "PASS"),
+    "failed": ("fail", FAIL_ICON, "FAIL"),
+    "invalid": ("invalid", INVALID_ICON, "INVALID"),
+}
+
+
+def badge(passed: bool | str, *, small: bool = False) -> str:
+    """A status badge. ``passed`` is a bool or a run state from ``run_state``."""
+    state = passed if isinstance(passed, str) else ("passed" if passed else "failed")
+    cls, icon, text = _STATES[state]
     size = " badge-sm" if small else ""
     return (
         f'<span class="badge {cls}{size}"><span class="icon" aria-hidden="true">{icon}</span>'
@@ -104,9 +114,11 @@ def _tally_rows(tally: Mapping[str, Any], *, labeller: Any = str) -> list[str]:
         counts = _as_map(raw)
         passed = int(counts.get("passed", 0))
         failed = int(counts.get("failed", 0))
+        invalid = int(counts.get("invalid", 0))
         rows.append(
             f'<tr><th scope="row">{esc(labeller(name))}</th>'
             f'<td class="n">{passed}</td><td class="n">{failed}</td>'
+            f'<td class="n">{invalid or ""}</td>'
             f"<td>{_bar(passed, passed + failed)}</td></tr>"
         )
     return rows
@@ -117,6 +129,7 @@ def _summary_section(results: Mapping[str, Any]) -> str:
     total = int(summary.get("total", 0))
     passed = int(summary.get("passed", 0))
     failed = int(summary.get("failed", 0))
+    invalid = int(summary.get("invalid", 0))
     stats = (
         f'<div class="stat"><span class="stat-label">Runs</span>'
         f'<span class="stat-value">{total}</span></div>'
@@ -126,10 +139,17 @@ def _summary_section(results: Mapping[str, Any]) -> str:
         f'<div class="stat stat-fail"><span class="stat-label">'
         f'<span aria-hidden="true">{FAIL_ICON}</span> Failed</span>'
         f'<span class="stat-value">{failed}</span></div>'
-        f'<div class="stat"><span class="stat-label">Pass rate</span>'
-        f'<span class="stat-value">{_rate(passed, total)}%</span></div>'
+        + (
+            f'<div class="stat stat-invalid"><span class="stat-label">'
+            f'<span aria-hidden="true">{INVALID_ICON}</span> Invalid</span>'
+            f'<span class="stat-value">{invalid}</span></div>'
+            if invalid
+            else ""
+        )
+        + f'<div class="stat"><span class="stat-label">Pass rate</span>'
+        f'<span class="stat-value">{_rate(passed, passed + failed)}%</span></div>'
     )
-    headers = ("{}", "Passed", "Failed", "Pass rate")
+    headers = ("{}", "Passed", "Failed", "Invalid", "Pass rate")
     by_agent = _table(
         "Passed and failed runs per agent",
         (headers[0].format("Agent"), *headers[1:]),
@@ -188,12 +208,10 @@ def _anchors(runs: list[Mapping[str, Any]]) -> list[str]:
 
 def _matrix_section(results: Mapping[str, Any], anchors: dict[tuple[str, str], str]) -> str:
     scenarios, agents = _axes(results)
-    lookup: dict[tuple[str, str], bool] = {}
+    lookup: dict[tuple[str, str], str] = {}
     for raw in _as_list(results.get("runs")):
         run = _as_map(raw)
-        lookup.setdefault(
-            (str(run.get("scenario")), str(run.get("agent"))), bool(run.get("passed"))
-        )
+        lookup.setdefault((str(run.get("scenario")), str(run.get("agent"))), run_state(run))
     rows = []
     for scenario in scenarios:
         sid = scenario.get("id", "")
@@ -204,7 +222,7 @@ def _matrix_section(results: Mapping[str, Any], anchors: dict[tuple[str, str], s
                 cells.append(
                     f'<td><a class="cell-link" href="#{esc(anchors[key])}" '
                     f'aria-label="{esc(sid)} with {esc(agent)}: '
-                    f'{"passed" if lookup[key] else "failed"}">{badge(lookup[key])}</a></td>'
+                    f'{lookup[key]}">{badge(lookup[key])}</a></td>'
                 )
             else:
                 cells.append('<td><span class="muted">not run</span></td>')
@@ -307,7 +325,14 @@ def _restarts(value: object) -> str:
 
 
 def _run_section(run: Mapping[str, Any], anchor: str) -> str:
-    passed = bool(run.get("passed"))
+    state = run_state(run)
+    reasons = [str(r) for r in _as_list(run.get("invalid_reasons"))]
+    invalid_note = (
+        '<p class="invalid-note"><strong>Not counted.</strong> This run did not exercise '
+        "what the scenario declares: " + esc("; ".join(reasons)) + ".</p>"
+        if state == "invalid"
+        else ""
+    )
     incident = _as_map(run.get("incident"))
     outcome = _as_map(run.get("outcome"))
     verdicts = [_as_map(v) for v in _as_list(run.get("verdicts"))]
@@ -342,13 +367,13 @@ def _run_section(run: Mapping[str, Any], anchor: str) -> str:
         f"<dt>Restarts</dt><dd>{esc(run.get('restarts', 0))}</dd></dl>"
     )
     return (
-        f'<details class="run {"is-pass" if passed else "is-fail"}" id="{esc(anchor)}">'
-        f"<summary>{badge(passed)}"
+        f'<details class="run is-{_STATES[state][0]}" id="{esc(anchor)}">'
+        f"<summary>{badge(state)}"
         f'<span class="run-title"><span class="sid">{esc(run.get("scenario"))}</span>'
         f'<span class="run-agent">{esc(run.get("agent"))}</span>'
         f'<span class="stitle">{esc(run.get("title"))}</span></span>'
         f'<span class="run-facts">{facts}</span></summary>'
-        '<div class="run-body">'
+        f'<div class="run-body">{invalid_note}'
         '<div class="story">'
         f"<div><h4>Incident</h4>{story}</div>"
         f"<div><h4>Task</h4>{task}<h4>Agent outcome</h4>{outcome_html}</div>"
@@ -474,6 +499,11 @@ section > .scroll{background:var(--surface);border:1px solid var(--border);
 .badge.pass,.badge.applied{color:var(--pass);background:var(--pass-bg);
   border-color:var(--pass-border)}
 .badge.fail{color:var(--fail);background:var(--fail-bg);border-color:var(--fail-border)}
+.badge.invalid{color:var(--muted);background:transparent;border-color:var(--border-strong);border-style:dashed}
+.stat-invalid .stat-label,.stat-invalid .stat-value{color:var(--muted)}
+details.run.is-invalid{border-left-color:var(--border-strong)}
+.invalid-note{margin:0 0 14px;padding:10px 12px;border:1px dashed var(--border-strong);
+  border-radius:8px;color:var(--muted)}
 .badge.dedup{color:var(--dedup);background:var(--dedup-bg);border-color:var(--dedup-border)}
 .badge.applied,.badge.dedup{font-weight:600;letter-spacing:0}
 .runs-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;
