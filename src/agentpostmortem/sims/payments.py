@@ -31,6 +31,7 @@ class Payments(SimService):
         }
 
     def seed(self, state: Mapping[str, Any]) -> None:
+        super().seed(state)
         for charge in state.get("charges", []):
             self.charges[charge["id"]] = {"refunded": 0, **charge}
 

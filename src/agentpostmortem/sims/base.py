@@ -31,12 +31,35 @@ class Corruption:
         return response
 
 
+class Quota:
+    """A fixed-window rate limit on one operation, measured in clock ticks.
+
+    At most ``limit`` calls are accepted in each window of ``window`` ticks.
+    A rejected call raises :class:`RateLimited` with the ticks left until the
+    window resets, which is what a well behaved client should wait.
+    """
+
+    def __init__(self, limit: int, window: int) -> None:
+        if limit < 1 or window < 1:
+            raise ValueError("quota limit and window must be positive")
+        self.limit = limit
+        self.window = window
+        self._used: defaultdict[int, int] = defaultdict(int)
+
+    def admit(self, now: int) -> None:
+        bucket = now // self.window
+        if self._used[bucket] >= self.limit:
+            raise RateLimited(self.window - now % self.window)
+        self._used[bucket] += 1
+
+
 class SimService(Corruption):
     """A deterministic in-process service whose operations can be made to fail.
 
     Subclasses register operations in ``operations``. Every call goes through
-    :meth:`call`, which counts calls per operation and applies the faults the
-    scenario declared for that call number.
+    :meth:`call`, which counts calls per operation, enforces any quota declared
+    in the seed, and applies the faults the scenario declared for that call
+    number.
     """
 
     name: str = "service"
@@ -46,9 +69,16 @@ class SimService(Corruption):
         self._faults = [f for f in (faults or []) if f.service == self.name]
         self._calls: defaultdict[str, int] = defaultdict(int)
         self.operations: dict[str, Handler] = {}
+        self.quotas: dict[str, Quota] = {}
 
     def seed(self, state: Mapping[str, Any]) -> None:
         """Load initial state. Services override when they have state."""
+        self.load_quotas(state)
+
+    def load_quotas(self, state: Mapping[str, Any]) -> None:
+        """Read ``quota: {operation: {limit, window}}`` from a seed."""
+        for operation, spec in dict(state.get("quota", {})).items():
+            self.quotas[str(operation)] = Quota(int(spec["limit"]), int(spec["window"]))
 
     def calls(self, operation: str) -> int:
         return self._calls[operation]
@@ -59,6 +89,8 @@ class SimService(Corruption):
         self._calls[operation] += 1
         number = self._calls[operation]
         self.ledger.clock.tick()
+        if operation in self.quotas:
+            self.quotas[operation].admit(self.ledger.clock.now)
         fault = next(
             (f for f in self._faults if f.operation == operation and f.trigger.fires(number)), None
         )
