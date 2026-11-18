@@ -1,0 +1,23 @@
+id: APM-S004
+title: Process crashes after charging, restarts and charges again
+category: progress_and_resume
+incident:
+  pattern: Restart repeats completed side effects
+  summary: >-
+    A checkout agent charges the card, then the worker is killed before it can
+    send the receipt. On restart it starts the task from the top and charges the
+    card a second time.
+task: Charge cus_ada 49.99, email the receipt and reserve the item.
+services: [payments, email, inventory]
+seed:
+  inventory:
+    stock: {sku_lamp: 5}
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_ada, amount: 4999}}
+  - {id: receipt, service: email, operation: send, args: {to: ada@example.com, subject: Your receipt}}
+  - {id: reserve, service: inventory, operation: reserve, args: {sku: sku_lamp, quantity: 1}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: payments, operation: charge, count: 1}}

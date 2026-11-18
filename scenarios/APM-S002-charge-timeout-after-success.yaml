@@ -1,0 +1,17 @@
+id: APM-S002
+title: Customer charged twice after a lost response
+category: duplicate_effects
+incident:
+  pattern: Charge succeeds, response lost, client retries
+  summary: >-
+    A checkout agent charges a customer. The charge succeeds but the response
+    never arrives. Retrying without an idempotency key creates a second charge.
+task: Charge customer cus_lin 12.99 for order 1042.
+services: [payments]
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_lin, amount: 1299}}
+faults:
+  - {service: payments, operation: charge, kind: timeout_after_success, trigger: {calls: [1]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: charge, count: 1}}

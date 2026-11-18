@@ -1,0 +1,21 @@
+id: APM-S001
+title: Refund times out after it went through
+category: duplicate_effects
+incident:
+  pattern: Retry after an ambiguous timeout on a money-moving call
+  summary: >-
+    A support agent issues a partial refund. The payments API applies it but the
+    response is lost to a timeout. An agent that retries without an idempotency
+    key refunds the customer twice.
+task: Refund 20.00 of charge ch_0001 for the damaged item.
+services: [payments]
+seed:
+  payments:
+    charges: [{id: ch_0001, customer: cus_ada, amount: 4999}]
+plan:
+  - {id: refund, service: payments, operation: refund, args: {charge: ch_0001, amount: 2000}}
+faults:
+  - {service: payments, operation: refund, kind: timeout_after_success, trigger: {calls: [1]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: refund, count: 1}}
