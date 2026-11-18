@@ -11,13 +11,13 @@ import http.client
 import json
 import threading
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, TypedDict
 
 import pytest
 
 from agentpostmortem import adapters
 from agentpostmortem.adapters import FrameworkNotInstalledError, get_adapter, hermes
-from agentpostmortem.adapters._script import PlanScript, tool_specs
+from agentpostmortem.adapters._script import ArgSpec, PlanScript, tool_specs
 from agentpostmortem.domain.scenario import Scenario
 from agentpostmortem.runner import build_world, run
 
@@ -244,3 +244,24 @@ def test_without_faults_the_plan_runs_once_and_completes(
     assert [c.step for c in result.calls] == [s.id for s in scenario.plan]
     assert result.outcome.status.value == "completed"
     assert result.outcome.completed_steps == tuple(s.id for s in scenario.plan)
+
+
+class Line(TypedDict):
+    sku: str
+    quantity: int
+
+
+def test_tool_schemas_type_lists_and_objects() -> None:
+    """Hermes gets real array and object schemas, not strings, for structured plan args."""
+    assert hermes._arg_schema(ArgSpec("to", (list[str],), True)) == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+    assert hermes._arg_schema(ArgSpec("line", (Line,), True)) == {
+        "type": "object",
+        "properties": {"sku": {"type": "string"}, "quantity": {"type": "integer"}},
+        "required": ["quantity", "sku"],
+    }
+    assert hermes._arg_schema(ArgSpec("note", (str, type(None)), False)) == {
+        "type": ["string", "null"]
+    }

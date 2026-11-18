@@ -56,6 +56,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import typing
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -92,7 +93,31 @@ INSTALL_HINT = (
     f"(see integrations/hermes/plugin/README.md), and {PYTHON_ENV} if its Python is not in .venv"
 )
 
-_JSON_TYPES = {bool: "boolean", int: "integer", float: "number", str: "string"}
+_JSON_TYPES = {
+    bool: "boolean",
+    int: "integer",
+    float: "number",
+    str: "string",
+    type(None): "null",
+}
+
+
+def _json_schema(kind: Any) -> dict[str, Any]:
+    """JSON Schema for one annotation from the plan: scalars, ``list[...]`` or a TypedDict."""
+    if typing.get_origin(kind) is list:
+        items = typing.get_args(kind)
+        if not items:
+            return {"type": "array"}
+        schemas = [_json_schema(item) for item in items]
+        return {"type": "array", "items": schemas[0] if len(schemas) == 1 else {"anyOf": schemas}}
+    if typing.is_typeddict(kind):
+        hints = typing.get_type_hints(kind)
+        return {
+            "type": "object",
+            "properties": {name: _json_schema(hint) for name, hint in hints.items()},
+            "required": sorted(getattr(kind, "__required_keys__", hints)),
+        }
+    return {"type": _JSON_TYPES.get(kind, "string")}
 
 
 @dataclass(frozen=True)
@@ -220,8 +245,12 @@ def tool_schemas(specs: Iterable[ToolSpec]) -> list[dict[str, Any]]:
 
 
 def _arg_schema(arg: ArgSpec) -> dict[str, Any]:
-    kinds = [_JSON_TYPES.get(kind, "string") for kind in arg.types]
-    return {"type": kinds[0] if len(kinds) == 1 else kinds}
+    schemas = [_json_schema(kind) for kind in arg.types]
+    if len(schemas) == 1:
+        return schemas[0]
+    if all(set(schema) == {"type"} for schema in schemas):
+        return {"type": [schema["type"] for schema in schemas]}
+    return {"anyOf": schemas}
 
 
 def _message(action: Action) -> tuple[dict[str, Any], str]:
