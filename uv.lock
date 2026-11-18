@@ -24,6 +24,9 @@ frameworks = [
     { name = "langgraph" },
     { name = "openai-agents" },
 ]
+mcp = [
+    { name = "mcp" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -37,11 +40,12 @@ dev = [
 requires-dist = [
     { name = "langchain", marker = "extra == 'frameworks'", specifier = ">=1.5.0" },
     { name = "langgraph", marker = "extra == 'frameworks'", specifier = ">=1.2.22" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3.0" },
     { name = "openai-agents", marker = "extra == 'frameworks'", specifier = ">=0.25.0" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
-provides-extras = ["frameworks"]
+provides-extras = ["frameworks", "mcp"]
 
 [package.metadata.requires-dev]
 dev = [
