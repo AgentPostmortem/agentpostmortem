@@ -2,6 +2,7 @@
 
 **Find out how your AI agent fails before your customers do.**
 
+[![PyPI](https://img.shields.io/pypi/v/agentpostmortem.svg)](https://pypi.org/project/agentpostmortem/)
 [![CI](https://github.com/AgentPostmortem/agentpostmortem/actions/workflows/ci.yml/badge.svg)](https://github.com/AgentPostmortem/agentpostmortem/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 ![Python 3.11 to 3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-3776ab.svg)
@@ -19,8 +20,7 @@ Most agent failures that cost money are not the model saying something wrong. Th
 ## Quick start
 
 ```bash
-pip install "agentpostmortem @ git+https://github.com/AgentPostmortem/agentpostmortem"
-git clone https://github.com/AgentPostmortem/agentpostmortem && cd agentpostmortem
+pip install agentpostmortem
 
 apm list                                  # 25 scenarios
 apm show APM-S001                         # the incident, the plan, the faults, the checks
@@ -74,7 +74,7 @@ Scenarios cover six categories: duplicate effects (5), honest completion (4), pr
 ## Test real frameworks
 
 ```bash
-pip install "agentpostmortem[frameworks] @ git+https://github.com/AgentPostmortem/agentpostmortem"
+pip install "agentpostmortem[frameworks]"
 apm run --scenario all --agent langgraph langgraph-checkpointer openai-agents openai-agents-session
 ```
 
@@ -85,7 +85,7 @@ Framework results are published only after the findings have been shared with ea
 ## Test any agent over MCP
 
 ```bash
-pip install "agentpostmortem[mcp] @ git+https://github.com/AgentPostmortem/agentpostmortem"
+pip install "agentpostmortem[mcp]"
 claude mcp add apm -- apm serve --scenario APM-S001 --agent-name claude-code
 ```
 
@@ -94,7 +94,7 @@ claude mcp add apm -- apm serve --scenario APM-S001 --agent-name claude-code
 ## Use it in CI
 
 ```yaml
-- run: pip install "agentpostmortem @ git+https://github.com/AgentPostmortem/agentpostmortem"
+- run: pip install "agentpostmortem"
 - run: apm run --scenario all --agent careful --fail-on-fail
 ```
 

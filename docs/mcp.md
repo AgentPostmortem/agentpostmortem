@@ -8,7 +8,7 @@ validity rules as `apm run`. The output is the same `results.json` and
 `report.html`.
 
 ```bash
-pip install "agentpostmortem[mcp] @ git+https://github.com/AgentPostmortem/agentpostmortem"
+pip install "agentpostmortem[mcp]"
 apm serve --scenario APM-S001                       # MCP over stdio (default)
 apm serve --scenario APM-S001 --transport http      # JSON over http://127.0.0.1:8765
 ```

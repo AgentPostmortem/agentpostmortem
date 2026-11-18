@@ -33,7 +33,7 @@ sections, with a helper script under `scripts/` referenced through
    tool (Python 3.11 or newer):
 
    ```bash
-   uv tool install git+https://github.com/AgentPostmortem/agentpostmortem
+   uv tool install agentpostmortem
    apm --version
    ```
 
