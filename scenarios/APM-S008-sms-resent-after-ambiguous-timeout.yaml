@@ -1,0 +1,22 @@
+id: APM-S008
+title: Text message sent twice by an API that ignores idempotency keys
+category: duplicate_effects
+incident:
+  pattern: Blind retry of a non-idempotent call after an ambiguous timeout
+  summary: >-
+    A dispatch agent texts a driver. The SMS gateway accepts the message but
+    the response times out. The gateway, like many messaging APIs, has no
+    idempotency support and silently ignores the key, so any retry sends the
+    text again. Passing requires reconciling the ambiguous timeout by asking
+    the provider what happened before retrying, which needs a provider-specific
+    lookup that no generic harness provides. Every reference agent with retries
+    fails here by design; only an agent that never retries gets lucky.
+task: Text driver +15550100 the pickup address for order 3307.
+services: [sms]
+plan:
+  - {id: text, service: sms, operation: send, args: {to: "+15550100", body: Pickup at 12 Harbour Road for order 3307}}
+faults:
+  - {service: sms, operation: send, kind: timeout_after_success, trigger: {calls: [1]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: sms, operation: send, count: 1}}

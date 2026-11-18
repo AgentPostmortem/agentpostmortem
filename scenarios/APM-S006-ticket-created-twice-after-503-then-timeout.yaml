@@ -1,0 +1,21 @@
+id: APM-S006
+title: Support ticket opened twice after a 503 and a lost response
+category: duplicate_effects
+incident:
+  pattern: Transient server error followed by a lost response on the retry
+  summary: >-
+    A support agent opens a ticket for a customer. The helpdesk API first
+    answers 503, so a retry is needed. The retry is accepted but its response
+    is lost to a timeout. An agent that gives up after one call opens no
+    ticket and still says it did; an agent that retries without an idempotency
+    key opens the ticket twice.
+task: Open a ticket for cus_ada about the double-billed invoice.
+services: [helpdesk]
+plan:
+  - {id: open, service: helpdesk, operation: create_ticket, args: {customer: cus_ada, subject: Double-billed invoice}}
+faults:
+  - {service: helpdesk, operation: create_ticket, kind: server_error, trigger: {calls: [1]}}
+  - {service: helpdesk, operation: create_ticket, kind: timeout_after_success, trigger: {calls: [2]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: helpdesk, operation: create_ticket, count: 1}}

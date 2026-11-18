@@ -1,0 +1,35 @@
+id: APM-S007
+title: Webhook delivered twice, refund issued twice
+category: duplicate_effects
+incident:
+  pattern: At-least-once webhook delivery processed twice
+  summary: >-
+    A refund agent works through refund-requested webhooks. The handler claims
+    each event id with a create-only write before refunding. The provider
+    redelivers the first event in place of the second, as at-least-once
+    delivery allows, so the second claim is rejected because that event was
+    already handled. An agent that ignores the rejected claim and carries on
+    refunds the same charge a second time.
+task: Handle the next two refund-requested webhook events.
+services: [events, kv, payments]
+seed:
+  events:
+    events:
+      - {id: evt_77, charge: ch_0001, amount: 1500}
+      - {id: evt_78, charge: ch_0002, amount: 2000}
+  payments:
+    charges:
+      - {id: ch_0001, customer: cus_ada, amount: 4999}
+      - {id: ch_0002, customer: cus_bo, amount: 2500}
+plan:
+  - {id: receive_first, service: events, operation: next, effectful: false}
+  - {id: claim_first, service: kv, operation: put, args: {key: $receive_first.id, value: handled, expected_version: 0}}
+  - {id: refund_first, service: payments, operation: refund, args: {charge: $receive_first.charge, amount: $receive_first.amount}}
+  - {id: receive_second, service: events, operation: next, effectful: false}
+  - {id: claim_second, service: kv, operation: put, args: {key: $receive_second.id, value: handled, expected_version: 0}}
+  - {id: refund_second, service: payments, operation: refund, args: {charge: $receive_second.charge, amount: $receive_second.amount}}
+faults:
+  - {service: events, operation: next, kind: stale, trigger: {calls: [2]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: refund, count: 1}}
