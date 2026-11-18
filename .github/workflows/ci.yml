@@ -26,8 +26,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - name: Install
-        run: uv sync --locked
+      - name: Install (with framework adapters)
+        run: uv sync --locked --all-extras
       - name: Format
         run: uv run ruff format --check .
       - name: Lint
@@ -47,8 +47,8 @@ jobs:
         with:
           python-version: "3.12"
           enable-cache: true
-      - run: uv sync --locked
-      - name: Run every scenario against every reference agent
+      - run: uv sync --locked --all-extras
+      - name: Run every scenario against every agent and framework adapter
         run: uv run apm run --scenario all --agent all --out apm-results
       - uses: actions/upload-artifact@v4
         with:
