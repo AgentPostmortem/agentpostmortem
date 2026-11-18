@@ -19,7 +19,6 @@ class Inventory(SimService):
         self.operations = {"get_stock": self._get_stock, "reserve": self._reserve}
 
     def seed(self, state: Mapping[str, Any]) -> None:
-        super().seed(state)
         for sku, quantity in dict(state.get("stock", {})).items():
             self.stock[sku] = int(quantity)
             self.history[sku] = [int(v) for v in state.get("history", {}).get(sku, [])] + [

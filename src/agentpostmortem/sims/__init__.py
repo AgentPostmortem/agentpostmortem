@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agentpostmortem.sims.base import Quota, SimService
 from agentpostmortem.sims.email import Email
+from agentpostmortem.sims.events import Events
 from agentpostmortem.sims.helpdesk import Helpdesk
 from agentpostmortem.sims.inventory import Inventory
 from agentpostmortem.sims.kv import KeyValue
@@ -21,11 +22,13 @@ SERVICES: dict[str, type[SimService]] = {
     Sms.name: Sms,
     Llm.name: Llm,
     Orders.name: Orders,
+    Events.name: Events,
 }
 
 __all__ = [
     "SERVICES",
     "Email",
+    "Events",
     "Helpdesk",
     "Inventory",
     "KeyValue",

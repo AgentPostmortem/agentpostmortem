@@ -6,6 +6,7 @@ from agentpostmortem.domain.faults import FaultKind, FaultSpec, Trigger
 from agentpostmortem.ledger import Ledger
 from agentpostmortem.sims import (
     Email,
+    Events,
     Helpdesk,
     Inventory,
     KeyValue,
@@ -128,10 +129,17 @@ def test_unknown_operation_is_rejected() -> None:
         Payments(Ledger()).call("teleport")
 
 
-def test_quota_rejects_until_the_window_resets() -> None:
+def test_quota_fault_rejects_until_the_window_resets() -> None:
     ledger = Ledger()
-    llm = Llm(ledger)
-    llm.seed({"quota": {"complete": {"limit": 2, "window": 10}}, "tokens": 7})
+    quota = FaultSpec(
+        service="llm",
+        operation="complete",
+        kind=FaultKind.RATE_LIMIT,
+        trigger=Trigger(always=True),
+        params={"limit": 2, "window": 10},
+    )
+    llm = Llm(ledger, [quota])
+    llm.seed({"tokens": 7})
     llm.call("complete", prompt="a")
     llm.call("complete", prompt="b")
     with pytest.raises(RateLimited) as limited:
@@ -244,17 +252,57 @@ def test_orders_lying_quote_and_reconcile() -> None:
 
 def test_email_batch_reports_partial_failure_and_replays_by_key() -> None:
     ledger = Ledger()
-    email = Email(ledger)
-    email.seed({"suppressed": ["bo@example.com"]})
-    recipients = ["a@example.com", "bo@example.com", "c@example.com"]
-    first = email.call("send_batch", recipients=recipients, subject="s", idempotency_key="k")
-    assert first == {"status": "partial", "sent": 2, "failed": ["bo@example.com"]}
-    assert (
-        email.call("send_batch", recipients=recipients, subject="s", idempotency_key="k") == first
+    fault = FaultSpec(
+        service="email",
+        operation="send_batch",
+        kind=FaultKind.PARTIAL,
+        trigger=Trigger(always=True),
+        params={"recipients": ["bo@example.com"]},
     )
+    email = Email(ledger, [fault])
+    email.seed({"audiences": {"all": ["a@example.com", "bo@example.com", "c@example.com"]}})
+    first = email.call("send_batch", audience="all", subject="s", idempotency_key="k")
+    assert first == {"status": "partial", "sent": 2, "failed": ["bo@example.com"]}
+    again = email.call("send_batch", audience="all", subject="s", idempotency_key="k")
+    assert again == first
     assert len(ledger.applied("email", "send")) == 2
     assert [e.applied for e in ledger] == [True, True, False, False]
     with pytest.raises(InvalidRequest):
-        email.call("send", to="bo@example.com", subject="s")
-    with pytest.raises(InvalidRequest):
         email.call("send", to=None, subject="s")
+
+
+def test_email_suppression_list_blocks_single_and_batch_sends() -> None:
+    ledger = Ledger()
+    email = Email(ledger)
+    email.seed(
+        {
+            "suppressed": ["bo@example.com"],
+            "audiences": {"all": ["a@example.com", "bo@example.com"]},
+        }
+    )
+    with pytest.raises(InvalidRequest):
+        email.call("send", to="bo@example.com", subject="s")
+    result = email.call("send_batch", audience="all", subject="s")
+    assert result["status"] == "partial" and result["sent"] == 1
+    with pytest.raises(NotFound):
+        email.call("send_batch", audience="nobody", subject="s")
+
+
+def test_partial_fault_needs_a_batch_operation() -> None:
+    fault = FaultSpec(service="email", operation="send", kind=FaultKind.PARTIAL)
+    with pytest.raises(ValueError, match="not a batch operation"):
+        Email(Ledger(), [fault]).call("send", to="a@b.c", subject="s")
+
+
+def test_event_feed_redelivers_on_a_stale_fault() -> None:
+    fault = FaultSpec(
+        service="events", operation="next", kind=FaultKind.STALE, trigger=Trigger(calls=(2,))
+    )
+    events = Events(Ledger(), [fault])
+    events.seed({"events": [{"id": "e1"}, {"id": "e2"}]})
+    assert events.call("next")["id"] == "e1"
+    assert events.call("next")["id"] == "e1"
+    assert events.call("next")["id"] == "e2"
+    with pytest.raises(NotFound):
+        events.call("next")
+    assert len(events.ledger) == 0

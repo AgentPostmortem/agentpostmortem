@@ -30,6 +30,12 @@ class Corruption:
     ) -> dict[str, Any]:
         return response
 
+    def partial(
+        self, operation: str, kwargs: dict[str, Any], params: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Run a batch operation with some items failing. Batch services override."""
+        raise ValueError(f"{operation} is not a batch operation; it cannot fail partially")
+
 
 class Quota:
     """A fixed-window rate limit on one operation, measured in clock ticks.
@@ -57,9 +63,12 @@ class SimService(Corruption):
     """A deterministic in-process service whose operations can be made to fail.
 
     Subclasses register operations in ``operations``. Every call goes through
-    :meth:`call`, which counts calls per operation, enforces any quota declared
-    in the seed, and applies the faults the scenario declared for that call
-    number.
+    :meth:`call`, which counts calls per operation and applies the faults the
+    scenario declared for that call number.
+
+    A ``rate_limit`` fault whose params set ``limit`` and ``window`` is a
+    quota rather than a one-off rejection: calls it covers are accepted until
+    the window is full, then rejected with the ticks left until it resets.
     """
 
     name: str = "service"
@@ -69,16 +78,14 @@ class SimService(Corruption):
         self._faults = [f for f in (faults or []) if f.service == self.name]
         self._calls: defaultdict[str, int] = defaultdict(int)
         self.operations: dict[str, Handler] = {}
-        self.quotas: dict[str, Quota] = {}
+        self._quotas = {
+            index: Quota(int(f.params["limit"]), int(f.params["window"]))
+            for index, f in enumerate(self._faults)
+            if is_quota(f)
+        }
 
     def seed(self, state: Mapping[str, Any]) -> None:
         """Load initial state. Services override when they have state."""
-        self.load_quotas(state)
-
-    def load_quotas(self, state: Mapping[str, Any]) -> None:
-        """Read ``quota: {operation: {limit, window}}`` from a seed."""
-        for operation, spec in dict(state.get("quota", {})).items():
-            self.quotas[str(operation)] = Quota(int(spec["limit"]), int(spec["window"]))
 
     def calls(self, operation: str) -> int:
         return self._calls[operation]
@@ -89,12 +96,19 @@ class SimService(Corruption):
         self._calls[operation] += 1
         number = self._calls[operation]
         self.ledger.clock.tick()
-        if operation in self.quotas:
-            self.quotas[operation].admit(self.ledger.clock.now)
-        fault = next(
-            (f for f in self._faults if f.operation == operation and f.trigger.fires(number)), None
+        firing = next(
+            (
+                (index, f)
+                for index, f in enumerate(self._faults)
+                if f.operation == operation and f.trigger.fires(number)
+            ),
+            None,
         )
-        if fault is None:
+        if firing is None:
+            return self.operations[operation](**kwargs)
+        index, fault = firing
+        if index in self._quotas:
+            self._quotas[index].admit(self.ledger.clock.now)
             return self.operations[operation](**kwargs)
         return self._apply(fault, operation, kwargs)
 
@@ -106,6 +120,8 @@ class SimService(Corruption):
             raise ServerError(f"{self.name}.{operation} returned 500")
         if kind is FaultKind.RATE_LIMIT:
             raise RateLimited(int(fault.params.get("retry_after", 5)))
+        if kind is FaultKind.PARTIAL:
+            return self.partial(operation, kwargs, fault.params)
         response = self.operations[operation](**kwargs)
         if kind is FaultKind.TIMEOUT_AFTER_SUCCESS:
             raise ToolTimeout(f"{self.name}.{operation} timed out after the request was accepted")
@@ -116,3 +132,8 @@ class SimService(Corruption):
         if kind is FaultKind.LYING:
             return self.lying(operation, response, fault.params)
         raise AssertionError(f"unhandled fault kind {kind}")
+
+
+def is_quota(fault: FaultSpec) -> bool:
+    """Whether a fault is a fixed-window quota rather than a one-off rejection."""
+    return fault.kind is FaultKind.RATE_LIMIT and "window" in fault.params
