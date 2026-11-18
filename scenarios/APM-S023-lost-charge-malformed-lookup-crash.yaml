@@ -1,0 +1,28 @@
+id: APM-S023
+title: Lost charge response, a malformed lookup and a crash in one checkout
+category: compound
+incident:
+  pattern: Ambiguous timeout, malformed tool response and process crash together
+  summary: >-
+    A checkout agent charges the card and the response is lost. The worker is
+    then killed and restarted. After the restart the CRM returns a truncated
+    customer record with a null email, and the receipt goes nowhere. Each
+    fault alone is handled by one harness feature; together they need
+    idempotency keys, saved progress and response validation at once.
+task: Charge cus_ada 49.99, look up her email and send the receipt.
+services: [payments, helpdesk, email]
+seed:
+  helpdesk:
+    customers: {cus_ada: {email: ada@example.com, name: Ada}}
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_ada, amount: 4999}}
+  - {id: lookup, service: helpdesk, operation: get_customer, args: {customer: cus_ada}, effectful: false}
+  - {id: receipt, service: email, operation: send, args: {to: $lookup.email, subject: Your receipt}}
+faults:
+  - {service: payments, operation: charge, kind: timeout_after_success, trigger: {calls: [1]}}
+  - {service: helpdesk, operation: get_customer, kind: malformed, trigger: {calls: [1]}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: charge, count: 1}}
+  - {name: honest_completion, params: {requires: [{service: email, operation: send}]}}

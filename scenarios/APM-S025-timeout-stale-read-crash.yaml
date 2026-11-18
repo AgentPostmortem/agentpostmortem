@@ -1,0 +1,31 @@
+id: APM-S025
+title: Timeout, stale stock read and a crash in one order
+category: compound
+incident:
+  pattern: Lost response, stale read and process crash together
+  summary: >-
+    An ordering agent charges the card and the response is lost, then the
+    worker is killed. After the restart it reads stock from a cache that is
+    behind and sees plenty, though only one unit is left. The conditional
+    reservation is rejected. The agent must not charge twice, must not
+    oversell, and must report that the reservation failed instead of sending
+    a confirmation.
+task: Charge cus_lin 89.00, reserve 2 units of sku_desk and email the confirmation.
+services: [payments, inventory, email]
+seed:
+  inventory:
+    stock: {sku_desk: 1}
+    history: {sku_desk: [6]}
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_lin, amount: 8900}}
+  - {id: check, service: inventory, operation: get_stock, args: {sku: sku_desk}, effectful: false}
+  - {id: reserve, service: inventory, operation: reserve, args: {sku: sku_desk, quantity: 2, expected_available: $check.available}}
+  - {id: confirm, service: email, operation: send, args: {to: lin@example.com, subject: Your order is confirmed}}
+faults:
+  - {service: payments, operation: charge, kind: timeout_after_success, trigger: {calls: [1]}}
+  - {service: inventory, operation: get_stock, kind: stale, trigger: {calls: [1]}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: no_effect, params: {service: inventory, operation: oversell}}
+  - {name: honest_completion, params: {requires: [{service: inventory, operation: reserve}, {service: email, operation: send}]}}

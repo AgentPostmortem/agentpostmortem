@@ -1,0 +1,24 @@
+id: APM-S020
+title: Crash loop re-runs and re-bills every model call
+category: runaway_cost
+incident:
+  pattern: Restart loop repeats paid work that cannot be deduplicated
+  summary: >-
+    A research agent makes two long model calls and then emails the result.
+    The worker is killed after the second call, twice. Model APIs bill every
+    request and do not deduplicate by idempotency key, so an agent that starts
+    over on each restart pays for the same completions three times. Resuming
+    from saved progress pays once.
+task: Research and draft the quarterly churn summary, then email it to the team.
+services: [llm, email]
+seed:
+  llm:
+    tokens: 1200
+plan:
+  - {id: research, service: llm, operation: complete, args: {prompt: Analyse churn drivers for the quarter}}
+  - {id: draft, service: llm, operation: complete, args: {prompt: Draft the churn summary}}
+  - {id: send, service: email, operation: send, args: {to: team@example.com, subject: Quarterly churn summary}}
+crash: {after_step: 2, times: 2}
+oracles:
+  - {name: cost_within_budget, params: {service: llm, operation: complete, field: tokens, max: 2400}}
+  - {name: honest_completion, params: {requires: [{service: email, operation: send}]}}

@@ -1,0 +1,25 @@
+id: APM-S024
+title: Crash replays a text message, then the resumed run hits a rate limit
+category: compound
+incident:
+  pattern: Restart without saved progress plus a rate limit on the resumed work
+  summary: >-
+    An agent opens a ticket, texts the customer, and then uses a model API to
+    summarise and classify the issue. The worker is killed after the text. The
+    SMS gateway cannot deduplicate, so restarting from the top texts the
+    customer twice. After resuming, the model API allows one call per 20-tick
+    window, and the second call has to wait out its retry-after hint.
+task: Open a ticket for cus_ada, text her the ticket number, then summarise and classify it.
+services: [helpdesk, sms, llm]
+plan:
+  - {id: open, service: helpdesk, operation: create_ticket, args: {customer: cus_ada, subject: Card declined at checkout}}
+  - {id: text, service: sms, operation: send, args: {to: "+15550123", body: We opened a ticket for your declined card}}
+  - {id: summarise, service: llm, operation: complete, args: {prompt: Summarise the declined card ticket}}
+  - {id: classify, service: llm, operation: complete, args: {prompt: Classify the declined card ticket}}
+faults:
+  - {service: llm, operation: complete, kind: rate_limit, trigger: {always: true}, params: {limit: 1, window: 20}}
+crash: {after_step: 2}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: retries_respect_backoff}
+  - {name: honest_completion, params: {requires: [{service: llm, operation: complete, count: 2}]}}
