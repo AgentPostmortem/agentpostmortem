@@ -22,7 +22,7 @@ from agentpostmortem.runner import run
 from agentpostmortem.server import Session
 from agentpostmortem.server.mcp_server import build_server
 
-SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
+SCENARIOS = Path(__file__).resolve().parents[2] / "scenarios"
 PINNED = "2026-01-01T00:00:00Z"
 TIMEOUT = 30
 

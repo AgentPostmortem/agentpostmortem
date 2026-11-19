@@ -38,7 +38,7 @@ from agentpostmortem.server.http_front import LOOPBACK, SessionHTTPServer, start
 from agentpostmortem.sims import errors
 from agentpostmortem.toolbox import Toolbox
 
-SCENARIOS = Path(__file__).resolve().parents[1] / "scenarios"
+SCENARIOS = Path(__file__).resolve().parents[2] / "scenarios"
 PINNED = "2026-01-01T00:00:00Z"
 _ERRORS: dict[str, type[errors.ToolError]] = {
     cls.code: cls
