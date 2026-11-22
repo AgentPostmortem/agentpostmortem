@@ -4,9 +4,11 @@
 
 ```bash
 pip install "agentpostmortem-bench[opik]"
-export OPIK_API_KEY=...              # and OPIK_HOST for a self-hosted install
+export OPIK_API_KEY=...              # Opik Cloud
 apm run --scenario all --agent all --opik-project agent-reliability
 ```
+
+For self-hosted Opik, set `OPIK_URL_OVERRIDE` to the API base URL, such as `http://localhost:5173/api`.
 
 `--opik-project` also reads `APM_OPIK_PROJECT`, which is handy in CI. The extra is optional: without it, `apm run` behaves exactly as before.
 
