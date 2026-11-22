@@ -27,6 +27,7 @@ from agentpostmortem import __version__, adapters
 from agentpostmortem.agents import REFERENCE_AGENTS, Agent, reference_agent
 from agentpostmortem.domain.scenario import Scenario, load_scenarios
 from agentpostmortem.report.html import render_html
+from agentpostmortem.report.opik import OpikReportError, report_to_opik
 from agentpostmortem.report.results import (
     GENERATED_AT_ENV,
     ResultsError,
@@ -43,6 +44,7 @@ EXIT_OK = 0
 EXIT_FAILED_RUNS = 1
 EXIT_USAGE = 2
 SCENARIOS_ENV = "APM_SCENARIOS"
+OPIK_PROJECT_ENV = "APM_OPIK_PROJECT"
 DEFAULT_OUT = "apm-results"
 DEFAULT_PORT = 8765
 
@@ -211,6 +213,15 @@ def cmd_run(args: argparse.Namespace, out: TextIO) -> int:
     else:
         print(_matrix_table(results), file=out)
         print(f"wrote {json_path} and {html_path}", file=out)
+
+    opik_project = args.opik_project or os.environ.get(OPIK_PROJECT_ENV)
+    if opik_project:
+        try:
+            reported = report_to_opik(results, opik_project)
+        except OpikReportError as exc:
+            raise UsageError(str(exc)) from exc
+        print(f"reported {reported} runs to Opik project {opik_project}", file=out)
+
     failed = results["summary"]["failed"]
     return EXIT_FAILED_RUNS if args.fail_on_fail and failed else EXIT_OK
 
@@ -344,6 +355,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--generated-at",
         metavar="TIMESTAMP",
         help=f"pin the report timestamp (default: ${GENERATED_AT_ENV}, else now)",
+    )
+    p_run.add_argument(
+        "--opik-project",
+        metavar="NAME",
+        help=f"also log every run to this Opik project (default: ${OPIK_PROJECT_ENV})",
     )
     p_run.set_defaults(func=cmd_run)
 
