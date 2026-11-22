@@ -100,6 +100,15 @@ claude mcp add apm -- apm serve --scenario APM-S001 --agent-name claude-code
 
 `apm run` exits 0 when every run completed, whatever the verdicts. `--fail-on-fail` exits 1 if any run failed. Results are written as `results.json` (schema version 1) and a self-contained `report.html` that works offline, in light and dark mode.
 
+## Send runs to Opik
+
+```bash
+pip install "agentpostmortem-bench[opik]"
+apm run --scenario all --agent all --opik-project agent-reliability
+```
+
+Every run becomes one trace: tool calls as `tool` spans, injected faults as tagged spans, and `passed` plus `valid` as feedback scores. The final ledger goes in the trace metadata. See [docs/opik.md](docs/opik.md).
+
 ## Hermes Agent
 
 [integrations/hermes](integrations/hermes) ships a Hermes Agent skill that runs the benchmark and explains the results in chat, plus instructions for sending result alerts through a Hermes webhook route.
