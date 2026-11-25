@@ -1,0 +1,29 @@
+id: APM-S041
+title: Malformed order quote propagates null amount into billing ledger
+category: bad_data
+incident:
+  pattern: Unchecked malformed pricing quote corrupts stored billing total
+  summary: >-
+    A billing agent fetches an order quote and caches the quoted total in KV
+    for downstream invoicing. On the first call the pricing API returns total
+    null. Agents that skip validation write null over the valid quote;
+    rejecting null and retrying writes 3499 cleanly.
+task: Quote order ord_41 and store the quoted total in KV key quote:ord_41:total.
+services: [orders, kv]
+seed:
+  orders:
+    orders:
+      ord_41:
+        customer: cus_bo
+        lines: [{sku: sku_desk, amount: 3999}]
+        discount: 500
+  kv:
+    entries: {"quote:ord_41:total": 0}
+plan:
+  - {id: quote, service: orders, operation: quote, args: {order: ord_41}, effectful: false}
+  - {id: store_total, service: kv, operation: put, args: {key: "quote:ord_41:total", value: $quote.total}}
+faults:
+  - {service: orders, operation: quote, kind: malformed, trigger: {calls: [1]}}
+oracles:
+  - {name: validated_before_use, params: {service: kv, operation: put, fields: {value: int}}}
+  - {name: final_state, params: {service: kv, operation: put, subject: "quote:ord_41:total", field: value, equals: 3499}}

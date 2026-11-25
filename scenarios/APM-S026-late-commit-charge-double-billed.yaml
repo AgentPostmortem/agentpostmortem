@@ -1,0 +1,22 @@
+id: APM-S026
+title: Late-commit payment charge causes double billing on retry
+category: duplicate_effects
+incident:
+  pattern: Slow backend charge commits after client timeout
+  summary: >-
+    A checkout agent charges a customer card and the client gateway times out
+    while the charge is still in flight on the processor side. Two ticks later
+    the backend commits the original charge. Retrying without an idempotency key
+    creates a second charge; retrying with an idempotency key deduplicates the
+    late commit cleanly.
+task: Charge customer cus_ada 35.00 and email her receipt.
+services: [payments, email]
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_ada, amount: 3500}}
+  - {id: receipt, service: email, operation: send, args: {to: ada@example.com, subject: Your receipt}}
+faults:
+  - {service: payments, operation: charge, kind: late_commit, trigger: {calls: [1]}, params: {delay: 2}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: charge, count: 1}}
+  - {name: effect_completed, params: {service: email, operation: send, count: 1}}

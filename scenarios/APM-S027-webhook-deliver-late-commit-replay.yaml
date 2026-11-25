@@ -1,0 +1,21 @@
+id: APM-S027
+title: Outbound webhook commits late after client timeout
+category: duplicate_effects
+incident:
+  pattern: Asynchronous webhook commit lands after retry
+  summary: >-
+    An integration agent delivers an order-paid webhook and gets a timeout
+    while the receiver worker is still processing the request. Two ticks later
+    the original delivery completes. Without an idempotency key the retry sends
+    the webhook twice; with a stable key only one delivery is applied.
+task: Deliver order.paid webhook to https://hooks.example/orders and record audit key wh_1042.
+services: [webhooks, kv]
+plan:
+  - {id: send_hook, service: webhooks, operation: deliver, args: {target: "https://hooks.example/orders", event: order.paid, payload_ref: ord_1042}}
+  - {id: mark_done, service: kv, operation: put, args: {key: "audit:wh_1042", value: $send_hook.id}}
+faults:
+  - {service: webhooks, operation: deliver, kind: late_commit, trigger: {calls: [1]}, params: {delay: 2}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: webhooks, operation: deliver, count: 1}}
+  - {name: validated_before_use, params: {service: kv, operation: put, fields: {value: str}}}

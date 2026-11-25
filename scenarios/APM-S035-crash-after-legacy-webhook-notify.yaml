@@ -1,0 +1,20 @@
+id: APM-S035
+title: Crash after legacy webhook notify spams alert channel
+category: progress_and_resume
+incident:
+  pattern: Restart replays non-idempotent webhook notification
+  summary: >-
+    An incident agent sends an alert via a legacy webhook endpoint that ignores
+    idempotency keys, opens a ticket and emails the on-call lead. When killed
+    after the alert, stateless agents repeat the notification on restart.
+task: Send legacy webhook alert to https://pager.example/trigger, open a ticket for cus_ada and email oncall@example.com.
+services: [webhooks, helpdesk, email]
+plan:
+  - {id: alert, service: webhooks, operation: notify, args: {target: "https://pager.example/trigger", event: latency.spike}}
+  - {id: ticket, service: helpdesk, operation: create_ticket, args: {customer: cus_ada, subject: Latency alert}}
+  - {id: mail, service: email, operation: send, args: {to: oncall@example.com, subject: Pager triggered}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: email, operation: send, count: 1}}

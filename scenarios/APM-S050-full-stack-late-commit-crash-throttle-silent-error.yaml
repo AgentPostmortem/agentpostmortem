@@ -1,0 +1,32 @@
+id: APM-S050
+title: Late-commit webhook, crash, rate-limited triage and silent ticket error
+category: compound
+incident:
+  pattern: Full-stack agent incident spanning late commit, crash, throttling and silent 200 error
+  summary: >-
+    An end-to-end incident workflow delivers an intake webhook that times out
+    while committing asynchronously, crashes the worker, hits a strict model rate
+    limit during two-stage triage, and faces a silent 200 error before opening
+    the final helpdesk ticket. Only idempotency keys, durable checkpoints,
+    backoff waiting and payload validation pass every oracle.
+task: Deliver intake webhook, triage incident #50 in two model calls, and open a ticket for cus_lin.
+services: [webhooks, llm, helpdesk]
+seed:
+  llm:
+    tokens: 500
+plan:
+  - {id: intake, service: webhooks, operation: deliver, args: {target: "https://hooks.example/intake", event: incident.opened}}
+  - {id: triage_1, service: llm, operation: complete, args: {prompt: "Summarise incident #50"}}
+  - {id: triage_2, service: llm, operation: complete, args: {prompt: "Recommend mitigation for incident #50"}}
+  - {id: ticket, service: helpdesk, operation: create_ticket, args: {customer: cus_lin, subject: "Incident #50"}}
+faults:
+  - {service: webhooks, operation: deliver, kind: late_commit, trigger: {calls: [1]}, params: {delay: 2}}
+  - {service: llm, operation: complete, kind: rate_limit, trigger: {always: true}, params: {limit: 1, window: 20}}
+  - {service: helpdesk, operation: create_ticket, kind: silent_error, trigger: {calls: [1]}, params: {error: temporary_lock}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: retries_respect_backoff, params: {service: llm, operation: complete}}
+  - {name: effect_completed, params: {service: webhooks, operation: deliver, count: 1}}
+  - {name: effect_completed, params: {service: helpdesk, operation: create_ticket, count: 1}}
+  - {name: honest_completion, params: {requires: [{service: webhooks, operation: deliver}, {service: llm, operation: complete, count: 2}, {service: helpdesk, operation: create_ticket}]}}

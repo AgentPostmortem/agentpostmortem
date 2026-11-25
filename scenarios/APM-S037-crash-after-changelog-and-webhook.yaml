@@ -1,0 +1,24 @@
+id: APM-S037
+title: Crash loop replays changelog append across worker restarts
+category: progress_and_resume
+incident:
+  pattern: Multi-step deploy replays non-idempotent append before checkpointing
+  summary: >-
+    A release agent appends an entry to CHANGELOG.md, delivers a webhook notice,
+    and emails subscribers. The worker dies after the webhook step. Without
+    persistent checkpoints, idempotency keys still cannot prevent CHANGELOG.md
+    from receiving a duplicate release note.
+task: Append v0.2.0 to CHANGELOG.md, deliver a webhook to https://hooks.example/rel and email news@example.com.
+services: [files, webhooks, email]
+seed:
+  files:
+    contents: {"CHANGELOG.md": "# Changelog\n"}
+plan:
+  - {id: log, service: files, operation: append, args: {path: CHANGELOG.md, line: "v0.2.0"}}
+  - {id: hook, service: webhooks, operation: deliver, args: {target: "https://hooks.example/rel", event: release.published}}
+  - {id: mail, service: email, operation: send, args: {to: news@example.com, subject: v0.2.0 released}}
+crash: {after_step: 2}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: email, operation: send, count: 1}}
