@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any
 
 from agentpostmortem.domain.effects import Effect
@@ -14,10 +14,42 @@ class Clock:
 
     def __init__(self) -> None:
         self.now = 0
+        self._pending: list[tuple[int, int, Callable[[], None]]] = []
+        self._seq = 0
+
+    def schedule(self, delay: int, callback: Callable[[], None]) -> None:
+        """Schedule ``callback`` to run once the clock reaches ``now + delay``."""
+        self._seq += 1
+        due = self.now + max(1, delay)
+        self._pending.append((due, self._seq, callback))
 
     def tick(self, amount: int = 1) -> int:
-        self.now += amount
+        target = self.now + max(0, amount)
+        while self._pending:
+            next_due = min(due for due, _, _ in self._pending)
+            if next_due > target:
+                break
+            self.now = max(self.now, next_due)
+            self._drain_due()
+        self.now = target
+        self._drain_due()
         return self.now
+
+    def _drain_due(self) -> None:
+        while True:
+            due = sorted(item for item in self._pending if item[0] <= self.now)
+            if not due:
+                return
+            next_item = due[0]
+            self._pending.remove(next_item)
+            next_item[2]()
+
+    def flush_pending(self) -> None:
+        """Advance to settle any still-pending scheduled callbacks before judging."""
+        while self._pending:
+            next_tick = min(due for due, _, _ in self._pending)
+            self.now = max(self.now, next_tick)
+            self._drain_due()
 
 
 class Ledger:

@@ -35,6 +35,12 @@ class FaultKind(StrEnum):
     PARTIAL = "partial"
     """A batch call succeeds as a whole but some items in it fail."""
 
+    LATE_COMMIT = "late_commit"
+    """The call times out before commit, then commits asynchronously later."""
+
+    SILENT_ERROR = "silent_error"
+    """The service returns without raising, carrying an error status in the body."""
+
 
 class Trigger(BaseModel):
     """When a fault fires, counted per service operation (1-based)."""

@@ -132,6 +132,7 @@ def run(scenario: Scenario, agent: Agent) -> RunResult:
             if restarts > MAX_RESTARTS:
                 outcome = AgentOutcome(Status.FAILED, "Agent kept crashing.", ())
                 break
+    ledger.clock.flush_pending()
     evidence = oracles.Evidence(scenario, ledger, outcome, tuple(tools.calls), restarts)
     meta: dict[str, Any] = {}
     for attribute in ("framework", "framework_version"):

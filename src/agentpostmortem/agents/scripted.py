@@ -110,6 +110,8 @@ def _looks_valid(result: dict[str, Any]) -> bool:
         return False
     if any(value is None for value in result.values()):
         return False
+    if result.get("ok") is False or bool(result.get("error")):
+        return False
     if "status" in result and result["status"] not in {"succeeded", "queued"}:
         return False
     if "amount" in result and not isinstance(result["amount"], int):

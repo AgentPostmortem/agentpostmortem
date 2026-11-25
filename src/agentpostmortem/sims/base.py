@@ -8,7 +8,7 @@ from typing import Any
 
 from agentpostmortem.domain.faults import FaultKind, FaultSpec
 from agentpostmortem.ledger import Ledger
-from agentpostmortem.sims.errors import RateLimited, ServerError, ToolTimeout
+from agentpostmortem.sims.errors import RateLimited, ServerError, ToolError, ToolTimeout
 
 Handler = Callable[..., dict[str, Any]]
 
@@ -136,6 +136,25 @@ class SimService(Corruption):
             raise RateLimited(int(fault.params.get("retry_after", 5)))
         if kind is FaultKind.PARTIAL:
             return self.partial(operation, kwargs, fault.params)
+        if kind is FaultKind.SILENT_ERROR:
+            return {
+                "ok": False,
+                "status": "error",
+                "error": str(fault.params.get("error", f"{self.name}.{operation} failed upstream")),
+            }
+        if kind is FaultKind.LATE_COMMIT:
+            delay = max(1, int(fault.params.get("delay", 2)))
+            op = self.operations[operation]
+            captured = dict(kwargs)
+
+            def _deferred() -> None:
+                try:
+                    op(**captured)
+                except ToolError:
+                    return
+
+            self.ledger.clock.schedule(delay, _deferred)
+            raise ToolTimeout(f"{self.name}.{operation} timed out before commit completed")
         response = self.operations[operation](**kwargs)
         if kind is FaultKind.TIMEOUT_AFTER_SUCCESS:
             raise ToolTimeout(f"{self.name}.{operation} timed out after the request was accepted")

@@ -31,6 +31,7 @@ from agentpostmortem.report.html import render_html
 from agentpostmortem.report.results import build_results, dumps, resolve_generated_at, run_record
 from agentpostmortem.runner import FaultActivity, RunResult, build_world
 from agentpostmortem.sims.errors import RateLimited, ToolError
+from agentpostmortem.toolbox import Toolbox
 
 FINISH_TOOL = "finish"
 WAIT_TOOL = "wait"
@@ -190,11 +191,15 @@ class Session:
         *,
         agent_name: str = DEFAULT_AGENT_NAME,
         transport: str = "session",
+        toolbox: Toolbox | None = None,
     ) -> None:
         self.scenario = scenario
         self.agent_name = agent_name
         self.transport = transport
-        self.ledger, self.toolbox = build_world(scenario)
+        if toolbox is None:
+            self.ledger, self.toolbox = build_world(scenario)
+        else:
+            self.ledger, self.toolbox = toolbox.ledger, toolbox
         self.outcome: AgentOutcome | None = None
         self._lock = threading.Lock()
         self._ok_steps: list[str] = []
@@ -429,6 +434,7 @@ class Session:
         if outcome is None:
             reasons.append(NO_FINISH)
             outcome = AgentOutcome(Status.FAILED, "The agent never called finish.", ())
+        self.ledger.clock.flush_pending()
         calls = tuple(self.toolbox.calls)
         restarts = 0
         evidence = oracles.Evidence(self.scenario, self.ledger, outcome, calls, restarts)
