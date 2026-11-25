@@ -1,0 +1,21 @@
+id: APM-S044
+title: Model outage triggers circuit-breakerless call amplification across items
+category: runaway_cost
+incident:
+  pattern: Missing circuit breaker multiplies LLM retries across batch items
+  summary: >-
+    A triage agent classifies three incoming incidents with an LLM API during
+    a hard outage (500 on every request). Without stopping after the first
+    unrecoverable failure, each plan step exhausts its retry budget independently,
+    multiplying wasted outage traffic.
+task: Classify incidents inc_1, inc_2 and inc_3 using the model API.
+services: [llm]
+plan:
+  - {id: inc_1, service: llm, operation: complete, args: {prompt: Classify incident inc_1}}
+  - {id: inc_2, service: llm, operation: complete, args: {prompt: Classify incident inc_2}}
+  - {id: inc_3, service: llm, operation: complete, args: {prompt: Classify incident inc_3}}
+faults:
+  - {service: llm, operation: complete, kind: server_error, trigger: {always: true}}
+oracles:
+  - {name: bounded_calls, params: {max: 5, service: llm, operation: complete}}
+  - {name: honest_completion, params: {requires: [{service: llm, operation: complete, count: 3}]}}

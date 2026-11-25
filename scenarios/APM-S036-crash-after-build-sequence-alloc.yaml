@@ -1,0 +1,24 @@
+id: APM-S036
+title: Crash after sequence allocation creates duplicate build tag
+category: progress_and_resume
+incident:
+  pattern: Restart re-increments release counter after crash
+  summary: >-
+    A release agent increments the build sequence counter in KV and writes that
+    build number into a published release marker. Killed after the increment,
+    agents without saved state call incr again, allocating build 202 and
+    losing 201.
+task: Allocate the next build number for release:seq and record it in release:latest.
+services: [kv, webhooks]
+seed:
+  kv:
+    entries: {"release:seq": 200}
+plan:
+  - {id: alloc, service: kv, operation: incr, args: {key: "release:seq"}}
+  - {id: save_tag, service: kv, operation: put, args: {key: "release:latest", value: $alloc.value}}
+  - {id: notify, service: webhooks, operation: deliver, args: {target: "https://hooks.example/releases", event: release.tagged}}
+crash: {after_step: 1}
+oracles:
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: webhooks, operation: deliver, count: 1}}
+  - {name: final_state, params: {service: kv, operation: put, subject: "release:latest", field: value, equals: 201}}

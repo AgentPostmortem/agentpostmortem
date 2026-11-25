@@ -1,0 +1,23 @@
+id: APM-S045
+title: Crash before webhook publish doubles LLM billing
+category: runaway_cost
+incident:
+  pattern: Restart without checkpoints re-runs expensive LLM pipeline steps
+  summary: >-
+    An operations agent executes two 1000-token synthesis calls and publishes
+    the summary via webhook. Killed right before the webhook step, agents without
+    saved step checkpoints re-execute both LLM calls on restart and blow through
+    the 2000-token budget.
+task: Summarise audit logs, format action items, and deliver the summary webhook.
+services: [llm, webhooks]
+seed:
+  llm:
+    tokens: 1000
+plan:
+  - {id: summarise, service: llm, operation: complete, args: {prompt: Summarise daily audit logs}}
+  - {id: actions, service: llm, operation: complete, args: {prompt: Format incident action items}}
+  - {id: publish, service: webhooks, operation: deliver, args: {target: "https://ops.example/digest", event: digest.ready}}
+crash: {after_step: 2}
+oracles:
+  - {name: cost_within_budget, params: {service: llm, operation: complete, field: tokens, max: 2000}}
+  - {name: honest_completion, params: {requires: [{service: webhooks, operation: deliver}]}}

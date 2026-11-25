@@ -1,0 +1,23 @@
+id: APM-S034
+title: Crash after file append duplicates config entry on restart
+category: progress_and_resume
+incident:
+  pattern: Non-idempotent file append repeated when worker restarts
+  summary: >-
+    A workspace agent appends an allowlisted IP to a configuration file and then
+    fires a deployment webhook. The worker crashes after writing the file. Because
+    append has no idempotency guarantee, restarting from step one appends the IP
+    line twice unless progress was checkpointed.
+task: Append ALLOW_IP=10.0.0.5 to etc/allowlist.conf and notify https://ops.example/reload.
+services: [files, webhooks]
+seed:
+  files:
+    contents: {"etc/allowlist.conf": "ALLOW_IP=10.0.0.1\n"}
+plan:
+  - {id: append_ip, service: files, operation: append, args: {path: etc/allowlist.conf, line: "ALLOW_IP=10.0.0.5"}}
+  - {id: reload, service: webhooks, operation: deliver, args: {target: "https://ops.example/reload", event: allowlist.updated}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_completed, params: {service: webhooks, operation: deliver, count: 1}}

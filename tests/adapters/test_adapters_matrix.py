@@ -22,15 +22,15 @@ from agentpostmortem.adapters import ADAPTERS, get_adapter
 from agentpostmortem.domain.scenario import Scenario
 from agentpostmortem.runner import run
 
-# Groups of five: S001-S005, S006-S010, S011-S015, S016-S020, S021-S025.
+# Groups of five: S001-S005, ..., S046-S050.
 EXPECTED: dict[str, str] = {
-    "langgraph": "PPPFP fPPFF PFFFF PFPPF PPpFp",
-    "langgraph-checkpointer": "PPPPP fPPFF PPPPF PFPPP PPpPp",
-    "langgraph-tool-retry": "FFFFF FFFFP FFFFF FFFFF FFFFF",
-    "langgraph-tool-errors": "PPFFF fFPFF FFFFF FFFFF FPFFF",
-    "openai-agents": "PPFFF fFPFF FFFFF FFFFF FPFFF",
-    "openai-agents-raise": "PPPFP fPPFF PFFFF PFPPF PPpFp",
-    "openai-agents-session": "PPFPF fFPFF FPPPF FFFFP FPFFF",
+    "langgraph": "PPPFP fPPFF PFFFF PFPPF PPpFp FPfPF FFFFF FFPFP FFPPF PfFFf",
+    "langgraph-checkpointer": "PPPPP fPPFF PPPPF PFPPP PPpPp FPfPF FFFPP PPPFP FFPPP PfFPf",
+    "langgraph-tool-retry": "FFFFF FFFFP FFFFF FFFFF FFFFF FFFFF FFFFF FFFFF FFFFF FFFFF",
+    "langgraph-tool-errors": "PPFFF fFPFF FFFFF FFFFF FPFFF PFfFF FFFFF FFFFF FFFFF FFFFF",
+    "openai-agents": "PPFFF fFPFF FFFFF FFFFF FPFFF PFfFF FFFFF FFFFF FFFFF FFFFF",
+    "openai-agents-raise": "PPPFP fPPFF PFFFF PFPPF PPpFp FPfPF FFFFF FFPFP FFPPF PfpFf",
+    "openai-agents-session": "PPFPF fFPFF FPPPF FFFFP FPFFF PFfFF FFFPP PPFFF FFFFP FFFFF",
 }
 
 REQUIRES = {"langgraph": "langgraph", "openai-agents": "agents"}

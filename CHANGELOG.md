@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+## 0.2.0 - 2026-11-25
+
+- Expanded the scenario catalog from 25 to 50 reproducible incidents (`APM-S001`..`APM-S050`) across all six failure categories.
+- Added two new simulated services: `files` (workspace reads/conditional SHA writes/appends/partial patch batches) and `webhooks` (outbound delivery with mixed idempotency).
+- Added two new fault modes: `late_commit` (client timeout followed by delayed async server commit) and `silent_error` (HTTP 200 payload carrying error status without raising).
+- Added OpenAI-compatible real model execution (`apm run --model`, `--base-url`, `--api-key-env`) and `--trials K` reporting empirical `pass@1`, `pass^k`, and 95% Wilson score intervals.
+- Added JUnit XML export (`apm run --junit FILE`) for CI pipelines.
+- Opik trace reporter (`[opik]` extra, `apm run --opik-project`) included in 0.2.0 release.
+
+- Opik reporter (extra `opik`): `apm run --opik-project NAME` logs one trace per run, with tool calls as `tool` spans, injected faults as tagged spans, and `passed` plus `valid` as feedback scores. The final ledger goes in the trace metadata. See [docs/opik.md](docs/opik.md).
+
 ## 0.1.0 (18 November 2026)
 
 First public release, published on PyPI as `agentpostmortem-bench` (the command is `apm`, the import is `agentpostmortem`).

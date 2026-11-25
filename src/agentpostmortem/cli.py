@@ -24,9 +24,19 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from agentpostmortem import __version__, adapters
-from agentpostmortem.agents import REFERENCE_AGENTS, Agent, reference_agent
+from agentpostmortem.agents import (
+    REFERENCE_AGENTS,
+    Agent,
+    ModelAgent,
+    ModelConfigError,
+    ModelOptions,
+    reference_agent,
+)
+from agentpostmortem.agents.model import DEFAULT_API_KEY_ENV, DEFAULT_BASE_URL
 from agentpostmortem.domain.scenario import Scenario, load_scenarios
 from agentpostmortem.report.html import render_html
+from agentpostmortem.report.junit import render_junit
+from agentpostmortem.report.opik import OpikReportError, report_to_opik
 from agentpostmortem.report.results import (
     GENERATED_AT_ENV,
     ResultsError,
@@ -43,6 +53,7 @@ EXIT_OK = 0
 EXIT_FAILED_RUNS = 1
 EXIT_USAGE = 2
 SCENARIOS_ENV = "APM_SCENARIOS"
+OPIK_PROJECT_ENV = "APM_OPIK_PROJECT"
 DEFAULT_OUT = "apm-results"
 DEFAULT_PORT = 8765
 
@@ -172,29 +183,84 @@ def cmd_show(args: argparse.Namespace, out: TextIO) -> int:
 
 def _matrix_table(results: dict[str, Any]) -> str:
     agents: list[str] = results["agents"]
-    verdicts = {(r["scenario"], r["agent"]): r["passed"] for r in results["runs"]}
-    rows = [
-        (s["id"], *("PASS" if verdicts[(s["id"], a)] else "FAIL" for a in agents))
-        for s in results["scenarios"]
-    ]
+    grouped: dict[tuple[str, str], list[bool]] = {}
+    for record in results["runs"]:
+        grouped.setdefault((record["scenario"], record["agent"]), []).append(bool(record["passed"]))
+
+    def _cell(sid: str, agent: str) -> str:
+        outcomes = grouped.get((sid, agent), [])
+        if len(outcomes) <= 1:
+            return "PASS" if outcomes and outcomes[0] else "FAIL"
+        return f"{sum(outcomes)}/{len(outcomes)}"
+
+    rows = [(s["id"], *(_cell(s["id"], a) for a in agents)) for s in results["scenarios"]]
     summary = results["summary"]
     tail = f"{summary['passed']} passed, {summary['failed']} failed, {summary['total']} runs"
+    reliability = summary.get("reliability")
+    if isinstance(reliability, dict) and reliability:
+        lines = [
+            f"  {agent}: pass@1={stats['pass_at_1']:.0%} "
+            f"(95% CI {stats['wilson_95'][0]:.0%}..{stats['wilson_95'][1]:.0%}), "
+            f"pass^{stats['trials']}={stats['pass_k']:.0%}"
+            for agent, stats in reliability.items()
+        ]
+        tail += "\nReliability:\n" + "\n".join(lines)
     return format_table(("SCENARIO", *agents), rows) + "\n\n" + tail
 
 
+def _resolve_run_agents(args: argparse.Namespace) -> list[Agent]:
+    models: list[str] = list(getattr(args, "model", None) or [])
+    if args.agent is None and models:
+        selected_names: list[str] = []
+    else:
+        selected_names = _select(
+            args.agent,
+            [*REFERENCE_AGENTS, *adapters.ADAPTERS],
+            "agent",
+            everything=[*REFERENCE_AGENTS, *adapters.available()],
+        )
+    built: list[Agent] = [_make_agent(name) for name in selected_names]
+    for model_name in dict.fromkeys(models):
+        built.append(
+            ModelAgent(
+                ModelOptions(
+                    model=model_name,
+                    base_url=args.base_url,
+                    api_key_env=args.api_key_env,
+                    temperature=args.temperature,
+                )
+            )
+        )
+    return built
+
+
 def cmd_run(args: argparse.Namespace, out: TextIO) -> int:
+    if args.trials < 1:
+        raise UsageError("--trials must be at least 1")
     scenarios = _load(args)
     scenario_ids = _select(args.scenario, [s.id for s in scenarios], "scenario")
-    agents = _select(
-        args.agent,
-        [*REFERENCE_AGENTS, *adapters.ADAPTERS],
-        "agent",
-        everything=[*REFERENCE_AGENTS, *adapters.available()],
-    )
+    agents_list = _resolve_run_agents(args)
+    agent_names = [agent.name for agent in agents_list]
     by_id = {s.id: s for s in scenarios}
     chosen = [by_id[sid] for sid in scenario_ids]
-    runs = [run_record(run(s, _make_agent(a))) for s in chosen for a in agents]
-    results = build_results(chosen, agents, runs, resolve_generated_at(args.generated_at))
+
+    runs: list[dict[str, Any]] = []
+    try:
+        for s in chosen:
+            for agent in agents_list:
+                for trial in range(1, args.trials + 1):
+                    result = run(s, agent)
+                    runs.append(run_record(result, trial=trial if args.trials > 1 else None))
+    except ModelConfigError as exc:
+        raise UsageError(str(exc)) from exc
+
+    results = build_results(
+        chosen,
+        agent_names,
+        runs,
+        resolve_generated_at(args.generated_at),
+        trials=args.trials,
+    )
 
     out_dir = Path(args.out)
     try:
@@ -203,14 +269,31 @@ def cmd_run(args: argparse.Namespace, out: TextIO) -> int:
         html_path = out_dir / "report.html"
         json_path.write_text(dumps(results), encoding="utf-8")
         html_path.write_text(render_html(results), encoding="utf-8")
+        junit_path: Path | None = Path(args.junit) if args.junit else None
+        if junit_path is not None:
+            junit_path.parent.mkdir(parents=True, exist_ok=True)
+            junit_path.write_text(render_junit(results), encoding="utf-8")
     except OSError as exc:
-        raise UsageError(f"cannot write results to {out_dir}: {exc.strerror or exc}") from exc
+        target = exc.filename or str(out_dir)
+        raise UsageError(f"cannot write results to {target}: {exc.strerror or exc}") from exc
 
     if args.json:
         out.write(dumps(results))
     else:
         print(_matrix_table(results), file=out)
-        print(f"wrote {json_path} and {html_path}", file=out)
+        written = f"{json_path} and {html_path}"
+        if junit_path is not None:
+            written += f" and {junit_path}"
+        print(f"wrote {written}", file=out)
+
+    opik_project = args.opik_project or os.environ.get(OPIK_PROJECT_ENV)
+    if opik_project:
+        try:
+            reported = report_to_opik(results, opik_project)
+        except OpikReportError as exc:
+            raise UsageError(str(exc)) from exc
+        print(f"reported {reported} runs to Opik project {opik_project}", file=out)
+
     failed = results["summary"]["failed"]
     return EXIT_FAILED_RUNS if args.fail_on_fail and failed else EXIT_OK
 
@@ -334,6 +417,46 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_run.add_argument(
+        "--model",
+        action="extend",
+        nargs="+",
+        metavar="MODEL",
+        help="run real LLM(s) over an OpenAI-compatible chat/completions endpoint",
+    )
+    p_run.add_argument(
+        "--base-url",
+        default=(
+            os.environ.get("APM_BASE_URL") or os.environ.get("OPENAI_BASE_URL") or DEFAULT_BASE_URL
+        ),
+        metavar="URL",
+        help=f"OpenAI-compatible base URL for --model (default: {DEFAULT_BASE_URL})",
+    )
+    p_run.add_argument(
+        "--api-key-env",
+        default=DEFAULT_API_KEY_ENV,
+        metavar="VAR",
+        help=f"environment variable holding the API key for --model ({DEFAULT_API_KEY_ENV})",
+    )
+    p_run.add_argument(
+        "--temperature",
+        type=float,
+        default=0.0,
+        metavar="FLOAT",
+        help="sampling temperature for --model runs (default: 0.0)",
+    )
+    p_run.add_argument(
+        "--trials",
+        type=int,
+        default=1,
+        metavar="N",
+        help="trials per (scenario, agent) to measure pass@1 and pass^k (default: 1)",
+    )
+    p_run.add_argument(
+        "--junit",
+        metavar="FILE",
+        help="write a JUnit XML report for CI alongside results.json",
+    )
+    p_run.add_argument(
         "--out", default=DEFAULT_OUT, metavar="DIR", help=f"output directory ({DEFAULT_OUT})"
     )
     p_run.add_argument("--json", action="store_true", help="print results.json to stdout")
@@ -344,6 +467,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--generated-at",
         metavar="TIMESTAMP",
         help=f"pin the report timestamp (default: ${GENERATED_AT_ENV}, else now)",
+    )
+    p_run.add_argument(
+        "--opik-project",
+        metavar="NAME",
+        help=f"also log every run to this Opik project (default: ${OPIK_PROJECT_ENV})",
     )
     p_run.set_defaults(func=cmd_run)
 

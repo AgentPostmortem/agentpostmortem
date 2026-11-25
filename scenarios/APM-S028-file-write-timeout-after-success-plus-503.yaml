@@ -1,0 +1,22 @@
+id: APM-S028
+title: Config file written twice after 503 and lost write response
+category: duplicate_effects
+incident:
+  pattern: Server error then ambiguous timeout during config deployment
+  summary: >-
+    A deployment agent writes an updated production manifest and notifies ops.
+    The storage service first returns 503, then accepts the retry and loses
+    the response. Giving up leaves ops unnotified; retrying without a key
+    records duplicate writes.
+task: Write deploy/prod.json and deliver the deploy.updated webhook.
+services: [files, webhooks]
+plan:
+  - {id: write_cfg, service: files, operation: write, args: {path: deploy/prod.json, content: '{"replicas":3}'}}
+  - {id: notify, service: webhooks, operation: deliver, args: {target: "https://ops.example/deploy", event: deploy.updated, payload_ref: prod}}
+faults:
+  - {service: files, operation: write, kind: server_error, trigger: {calls: [1]}}
+  - {service: files, operation: write, kind: timeout_after_success, trigger: {calls: [2]}}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: files, operation: write, count: 1}}
+  - {name: effect_completed, params: {service: webhooks, operation: deliver, count: 1}}

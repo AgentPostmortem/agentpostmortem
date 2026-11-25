@@ -8,6 +8,7 @@ whenever a key is renamed or removed; adding keys is backwards compatible.
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -40,7 +41,7 @@ def resolve_generated_at(explicit: str | None = None) -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def run_record(result: RunResult) -> dict[str, Any]:
+def run_record(result: RunResult, *, trial: int | None = None) -> dict[str, Any]:
     """One run as a dict, with the scenario context a report needs to stand alone."""
     record = result.to_dict()
     scenario = result.scenario
@@ -50,6 +51,8 @@ def run_record(result: RunResult) -> dict[str, Any]:
         "references": list(scenario.incident.references),
     }
     record["task"] = scenario.task
+    if trial is not None:
+        record["trial"] = trial
     return record
 
 
@@ -85,12 +88,66 @@ def summarize(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+Z_SCORE_95 = 1.96
+
+
+def wilson_interval(passed: int, total: int, z: float = Z_SCORE_95) -> list[float]:
+    """Return a 95% Wilson score confidence interval ``[low, high]`` in ``[0.0, 1.0]``."""
+    if total <= 0:
+        return [0.0, 0.0]
+    p = passed / total
+    z2 = z * z
+    denom = 1.0 + z2 / total
+    center = (p + z2 / (2.0 * total)) / denom
+    margin = (z * math.sqrt((p * (1.0 - p)) / total + z2 / (4.0 * total * total))) / denom
+    return [round(max(0.0, center - margin), 4), round(min(1.0, center + margin), 4)]
+
+
+def summarize_reliability(runs: Sequence[Mapping[str, Any]], trials: int) -> dict[str, Any]:
+    """Compute per-agent pass@1, Wilson 95% interval, and pass^k consistency over trials."""
+    by_agent: dict[str, dict[str, list[Mapping[str, Any]]]] = {}
+    for run in runs:
+        agent = str(run.get("agent", ""))
+        scenario = str(run.get("scenario", ""))
+        by_agent.setdefault(agent, {}).setdefault(scenario, []).append(run)
+
+    reliability: dict[str, Any] = {}
+    for agent, scenarios in by_agent.items():
+        all_valid = [
+            r for items in scenarios.values() for r in items if r.get("valid") is not False
+        ]
+        valid_count = len(all_valid)
+        passed_count = sum(1 for r in all_valid if r.get("passed"))
+        pass_at_1 = round(passed_count / valid_count, 4) if valid_count else 0.0
+        consistent = 0
+        for items in scenarios.values():
+            valid_trials = [r for r in items if r.get("valid") is not False]
+            if len(valid_trials) == trials and all(r.get("passed") for r in valid_trials):
+                consistent += 1
+        pass_k = round(consistent / len(scenarios), 4) if scenarios else 0.0
+        reliability[agent] = {
+            "trials": trials,
+            "valid": valid_count,
+            "passed": passed_count,
+            "pass_at_1": pass_at_1,
+            "wilson_95": wilson_interval(passed_count, valid_count),
+            "pass_k": pass_k,
+            "expected_pass_k": round(pass_at_1**trials, 4),
+        }
+    return reliability
+
+
 def build_results(
     scenarios: list[Scenario],
     agents: list[str],
     runs: list[dict[str, Any]],
     generated_at: str,
+    *,
+    trials: int = 1,
 ) -> dict[str, Any]:
+    summary = summarize(runs)
+    if trials > 1:
+        summary["reliability"] = summarize_reliability(runs, trials)
     return {
         "schema_version": SCHEMA_VERSION,
         "tool": {"name": TOOL_NAME, "version": __version__},
@@ -99,7 +156,7 @@ def build_results(
             {"id": s.id, "title": s.title, "category": s.category.value} for s in scenarios
         ],
         "agents": list(agents),
-        "summary": summarize(runs),
+        "summary": summary,
         "runs": runs,
     }
 

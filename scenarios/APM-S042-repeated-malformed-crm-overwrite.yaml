@@ -1,0 +1,24 @@
+id: APM-S042
+title: Repeated malformed CRM reads overwrite customer email with null
+category: bad_data
+incident:
+  pattern: Double malformed read slips past single-retry handlers
+  summary: >-
+    A sync agent fetches cus_lin from the CRM twice corrupted with null fields
+    before returning cleanly on the third attempt. Agents that validate and
+    retry preserve lin@example.com; naive or non-validating flows write null.
+task: Read cus_lin from CRM and write her email into helpdesk profile cus_lin_sync.
+services: [helpdesk]
+seed:
+  helpdesk:
+    customers:
+      cus_lin: {email: lin@example.com, name: Lin}
+      cus_lin_sync: {email: old@example.com, name: Lin}
+plan:
+  - {id: lookup, service: helpdesk, operation: get_customer, args: {customer: cus_lin}, effectful: false}
+  - {id: update, service: helpdesk, operation: update_customer, args: {customer: cus_lin_sync, email: $lookup.email}}
+faults:
+  - {service: helpdesk, operation: get_customer, kind: malformed, trigger: {calls: [1, 2]}}
+oracles:
+  - {name: validated_before_use, params: {service: helpdesk, operation: update_customer, fields: {email: str}}}
+  - {name: final_state, params: {service: helpdesk, operation: update_customer, subject: cus_lin_sync, field: email, equals: lin@example.com}}

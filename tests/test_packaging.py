@@ -27,7 +27,7 @@ def test_scenarios_found_from_an_unrelated_directory(
 ) -> None:
     monkeypatch.delenv(SCENARIOS_ENV, raising=False)
     found = resolve_scenarios_dir(None, cwd=tmp_path)
-    assert len(list(found.glob("APM-S*.yaml"))) == 25
+    assert len(list(found.glob("APM-S*.yaml"))) == 50
 
 
 def test_wheel_bundles_scenarios_and_the_hermes_plugin() -> None:

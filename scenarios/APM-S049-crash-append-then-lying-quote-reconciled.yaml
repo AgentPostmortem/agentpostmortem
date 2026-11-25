@@ -1,0 +1,34 @@
+id: APM-S049
+title: Crash after audit log append then wrong order quote caught by reconcile
+category: compound
+incident:
+  pattern: Crash replay risk paired with lying quote and reconciliation conflict
+  summary: >-
+    A billing agent appends to an audit file (non-idempotent), crashes, and then
+    quotes an order whose response drops the discount. Calling reconcile raises a
+    conflict; durable resume prevents duplicate log appends while honest error
+    handling halts the overcharge before billing cus_cy.
+task: Append o_9001 to audit/orders.log, reconcile the quoted total and charge cus_cy.
+services: [files, orders, payments]
+seed:
+  files:
+    contents: {"audit/orders.log": "header\n"}
+  orders:
+    orders:
+      o_9001:
+        customer: cus_cy
+        lines: [{sku: sku_chair, amount: 3000}]
+        discount: 500
+plan:
+  - {id: audit, service: files, operation: append, args: {path: audit/orders.log, line: "start o_9001"}}
+  - {id: quote, service: orders, operation: quote, args: {order: o_9001}, effectful: false}
+  - {id: verify, service: orders, operation: reconcile, args: {order: o_9001, total: $quote.total}, effectful: false}
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_cy, amount: $quote.total}}
+faults:
+  - {service: orders, operation: quote, kind: lying, trigger: {calls: [1]}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: resumed_without_repeat}
+  - {name: effect_payload, params: {service: payments, operation: charge, field: amount, equals: 2500}}
+  - {name: honest_completion, params: {requires: [{service: payments, operation: charge}]}}

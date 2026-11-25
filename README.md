@@ -22,7 +22,7 @@ Most agent failures that cost money are not the model saying something wrong. Th
 ```bash
 pip install agentpostmortem-bench      # installs the `apm` command and `import agentpostmortem`
 
-apm list                                  # 25 scenarios
+apm list                                  # 50 scenarios
 apm show APM-S001                         # the incident, the plan, the faults, the checks
 apm run --scenario all --agent all        # writes apm-results/results.json and report.html
 ```
@@ -33,13 +33,13 @@ Framework mode needs no API key and costs nothing: the model is replaced by a sc
 
 Five reference agents implement the harness policies teams actually ship. Same plan, same faults, different safety nets:
 
-| Agent | Policy | Scenarios passed (of 25) |
+| Agent | Policy | Scenarios passed (of 50) |
 | --- | --- | --- |
-| `naive` | one attempt, no retries | 4 |
+| `naive` | one attempt, no retries | 5 |
 | `retrying` | retries on error, no idempotency keys | 1 |
-| `idempotent` | retries with a stable idempotency key per step | 6 |
-| `durable` | idempotent, plus checkpoints that survive a crash | 9 |
-| `careful` | durable, plus response validation, backoff and honest failure reports | 23 |
+| `idempotent` | retries with a stable idempotency key per step | 9 |
+| `durable` | idempotent, plus checkpoints that survive a crash | 17 |
+| `careful` | durable, plus response validation, backoff and honest failure reports | 48 |
 
 Adding retries without idempotency keys makes an agent worse, not better. Durability fixes crashes but not lying tools. The two scenarios `careful` still fails are documented as needing a check no generic harness can provide.
 
@@ -61,7 +61,9 @@ scenario  ->  run  ->  ledger  ->  verdicts  ->  report
 | --- | --- |
 | `timeout` | No answer in time; nothing happened |
 | `timeout_after_success` | The work happened, the response was lost |
+| `late_commit` | The call times out first, then commits asynchronously ticks later |
 | `server_error` | A 5xx; nothing happened |
+| `silent_error` | HTTP 200 payload with `ok: false` / `status: error`; nothing happened |
 | `rate_limit` | A 429 with retry-after, or a fixed-window quota |
 | `malformed` | Missing fields or wrong types |
 | `stale` | An older, well formed value (or a redelivered event) |
@@ -95,10 +97,27 @@ claude mcp add apm -- apm serve --scenario APM-S001 --agent-name claude-code
 
 ```yaml
 - run: pip install "agentpostmortem-bench"
-- run: apm run --scenario all --agent careful --fail-on-fail
+- run: apm run --scenario all --agent careful --fail-on-fail --junit apm-results/junit.xml
 ```
 
-`apm run` exits 0 when every run completed, whatever the verdicts. `--fail-on-fail` exits 1 if any run failed. Results are written as `results.json` (schema version 1) and a self-contained `report.html` that works offline, in light and dark mode.
+`apm run` exits 0 when every run completed, whatever the verdicts. `--fail-on-fail` exits 1 if any run failed, and `--junit FILE` writes standard JUnit XML for GitHub Actions or any CI runner. Results are written as `results.json` (schema version 1) and a self-contained `report.html` that works offline, in light and dark mode.
+
+## Benchmark real models and measure pass^k
+
+```bash
+OPENAI_API_KEY=... apm run --model gpt-4o --scenario all --trials 5
+```
+
+`--model` drives any OpenAI-compatible `/chat/completions` endpoint (or local Ollama/vLLM via `--base-url`) against the same simulated tools and oracles. Passing `--trials K` repeats each scenario `K` times and reports `pass@1`, empirical `pass^k` (fraction passing all `K` trials), and 95% Wilson confidence intervals.
+
+## Send runs to Opik
+
+```bash
+pip install "agentpostmortem-bench[opik]"
+apm run --scenario all --agent all --opik-project agent-reliability
+```
+
+Every run becomes one trace: tool calls as `tool` spans, injected faults as tagged spans, and `passed` plus `valid` as feedback scores. The final ledger goes in the trace metadata. See [docs/opik.md](docs/opik.md).
 
 ## Hermes Agent
 
@@ -140,7 +159,7 @@ What AgentPostmortem adds is a maintained, reproducible benchmark of agent frame
 
 ## Status
 
-Alpha. The scenario format and the results schema may change before 1.0; `results.json` carries a `schema_version` so tools can tell.
+v0.2.0 (`agentpostmortem-bench`): 50 scenarios across 11 simulated services and 10 fault modes. The scenario format and `results.json` keep schema version 1 cleanly compatible before 1.0.
 
 Questions, findings or a scenario idea: open an issue, or email work@royalpinto007.com. Security reports: see [SECURITY.md](SECURITY.md).
 

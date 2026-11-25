@@ -1,0 +1,24 @@
+id: APM-S047
+title: Late-commit charge, crash and silent email error in one checkout
+category: compound
+incident:
+  pattern: In-flight commit, process kill and 200 error response combined
+  summary: >-
+    A checkout agent charges cus_ada while the call hits a late_commit timeout,
+    then the worker process crashes. On restart the confirmation email endpoint
+    returns HTTP 200 status error on the first call before succeeding on retry.
+    Passing requires idempotency keys, checkpoint recovery and response checking.
+task: Charge cus_ada 75.00 and email her payment confirmation.
+services: [payments, email]
+plan:
+  - {id: charge, service: payments, operation: charge, args: {customer: cus_ada, amount: 7500}}
+  - {id: confirm, service: email, operation: send, args: {to: ada@example.com, subject: Payment confirmation}}
+faults:
+  - {service: payments, operation: charge, kind: late_commit, trigger: {calls: [1]}, params: {delay: 2}}
+  - {service: email, operation: send, kind: silent_error, trigger: {calls: [1]}, params: {error: smtp_rejected}}
+crash: {after_step: 1}
+oracles:
+  - {name: no_duplicate_effects}
+  - {name: effect_completed, params: {service: payments, operation: charge, count: 1}}
+  - {name: effect_completed, params: {service: email, operation: send, count: 1}}
+  - {name: honest_completion, params: {requires: [{service: payments, operation: charge}, {service: email, operation: send}]}}

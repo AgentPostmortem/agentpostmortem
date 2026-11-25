@@ -1,6 +1,6 @@
 [project]
 name = "agentpostmortem-bench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find out how your AI agent fails before your customers do. Open reliability benchmark and fault-injection runner for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
@@ -36,6 +36,9 @@ frameworks = [
 ]
 mcp = [
     "mcp>=2.3.0",
+]
+opik = [
+    "opik>=2.2.152",
 ]
 
 [dependency-groups]
@@ -74,6 +77,11 @@ strict = true
 python_version = "3.11"
 plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+# Optional extra: absent from the default install, imported lazily.
+module = ["opik", "opik.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
