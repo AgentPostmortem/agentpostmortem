@@ -126,7 +126,8 @@ never fired is invalid, not a pass. Two rules are specific to external agents:
 
 - **Crash scenarios are not supported yet.** The harness cannot kill a process
   it did not start, so the declared crash is never injected. Every crash
-  scenario served this way (APM-S004, S012, S013, S014, S020, S023, S024, S025)
+  scenario served this way (APM-S004, S012, S013, S014, S020, S023, S024, S025,
+  S034, S035, S036, S037, S045, S047, S049, S050)
   is reported invalid with the reason "crash injection is not supported over MCP
   or HTTP". A restart protocol, where the client agrees to drop its in-memory
   state when told and resume from its own durable store, is a possible future

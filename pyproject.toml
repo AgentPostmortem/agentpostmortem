@@ -1,6 +1,6 @@
 [project]
 name = "agentpostmortem-bench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Find out how your AI agent fails before your customers do. Open reliability benchmark and fault-injection runner for AI agents."
 readme = "README.md"
 license = "Apache-2.0"
