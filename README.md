@@ -50,7 +50,7 @@ scenario  ->  run  ->  ledger  ->  verdicts  ->  report
 ```
 
 - **Scenarios** are YAML files. Each reproduces a real incident pattern: the task, the simulated services, which fault fires and when, and what correct behaviour looks like.
-- **Simulated services** (payments, email, SMS, helpdesk, inventory, orders, a key-value store, a model API, an event feed) are deterministic and honour real semantics such as idempotency keys and conditional writes.
+- **Simulated services** (payments, email, SMS, helpdesk, inventory, orders, files, webhooks, a key-value store, a model API, an event feed) are deterministic and honour real semantics such as idempotency keys and conditional writes.
 - **The side-effect ledger** records every real-world effect: what was applied, what was deduplicated, and when.
 - **Oracles** turn the ledger and the agent's final claim into verdicts with evidence: `no_duplicate_effects`, `honest_completion`, `resumed_without_repeat`, `validated_before_use`, `retries_respect_backoff`, `cost_within_budget` and more.
 - **Validity.** A run only counts if the faults and crash it declares actually happened. If an agent gives up before a fault can fire, the run is reported as invalid, never as a pass.
@@ -71,7 +71,7 @@ scenario  ->  run  ->  ledger  ->  verdicts  ->  report
 | `partial` | A batch call that succeeds as a whole while some items fail |
 | `crash` | The agent process dies after step N and restarts |
 
-Scenarios cover six categories: duplicate effects (5), honest completion (4), progress and resume (4), bad data (5), runaway cost (4) and compound failures (3).
+Scenarios cover six categories: duplicate effects (9), honest completion (8), progress and resume (8), bad data (10), runaway cost (8) and compound failures (7).
 
 ## Test real frameworks
 
@@ -80,7 +80,7 @@ pip install "agentpostmortem-bench[frameworks]"
 apm run --scenario all --agent langgraph langgraph-checkpointer openai-agents openai-agents-session
 ```
 
-Adapters drive each framework's own agent loop, tool wrappers and error handling with a scripted model. They add no retries, keys or validation of their own, so what you measure is the framework's default behaviour and its documented options. Available today: LangGraph (`create_agent` with defaults, a checkpointer, tool-retry middleware and tool-error middleware) and the OpenAI Agents SDK (defaults, raise-on-error and SQLite sessions).
+Adapters drive each framework's own agent loop, tool wrappers and error handling with a scripted model. They add no retries, keys or validation of their own, so what you measure is the framework's default behaviour and its documented options. Available today: LangGraph (`create_agent` with defaults, a checkpointer, tool-retry middleware and tool-error middleware), the OpenAI Agents SDK (defaults, raise-on-error and SQLite sessions), the Claude Agent SDK (defaults and resumed sessions) and Hermes Agent (from a source checkout).
 
 Framework results are published only after the findings have been shared with each framework's maintainers.
 

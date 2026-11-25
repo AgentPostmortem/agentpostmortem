@@ -9,9 +9,7 @@
 - Added two new fault modes: `late_commit` (client timeout followed by delayed async server commit) and `silent_error` (HTTP 200 payload carrying error status without raising).
 - Added OpenAI-compatible real model execution (`apm run --model`, `--base-url`, `--api-key-env`) and `--trials K` reporting empirical `pass@1`, `pass^k`, and 95% Wilson score intervals.
 - Added JUnit XML export (`apm run --junit FILE`) for CI pipelines.
-- Opik trace reporter (`[opik]` extra, `apm run --opik-project`) included in 0.2.0 release.
-
-- Opik reporter (extra `opik`): `apm run --opik-project NAME` logs one trace per run, with tool calls as `tool` spans, injected faults as tagged spans, and `passed` plus `valid` as feedback scores. The final ledger goes in the trace metadata. See [docs/opik.md](docs/opik.md).
+- Added Opik trace reporter (`opik` extra, `apm run --opik-project NAME`): logs one trace per run with tool calls as `tool` spans, injected faults as tagged spans, `passed` and `valid` feedback scores, and the final ledger in trace metadata. See [docs/opik.md](docs/opik.md).
 
 ## 0.1.0 (18 November 2026)
 
